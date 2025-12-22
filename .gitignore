@@ -1,0 +1,21 @@
+# .gitignore
+# Purpose: Prevent sensitive keys and junk files from being uploaded to GitHub.
+# Date: Monday, December 22, 2025, 10:55 AM (Athens Time)
+
+# Virtual Environments
+vh/
+env/
+.venv/
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Secrets (Neo4j and Google API keys)
+.env
+secrets.json
+config.py
+
+# System Files
+.DS_Store
+Thumbs.db
