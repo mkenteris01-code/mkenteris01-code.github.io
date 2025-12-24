@@ -1,0 +1,16 @@
+# Requirements for Agentic AI Extraction Stack (GPU Rig Version)
+# Stage 1: Technical Evidence Audit
+# Date: 23 December 2025
+
+# Core dependencies
+pandas>=2.0.0
+pydantic>=2.0.0
+PyPDF2>=3.0.0
+tenacity>=8.2.0
+requests>=2.31.0
+
+# Optional: Enhanced PDF extraction
+pdfplumber>=0.10.0
+
+# Development tools
+pytest>=7.4.0

@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+venv_extraction/
+ENV/
+env/
+
+# Data files (on OSF instead)
+*.csv
+*.xlsx
+data/*.csv
+!data/README.md
+
+# PDFs (copyright)
+*.pdf
+pdfs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Test outputs
+test_extraction_*.json
+*_VALIDATION_REPORT.md
