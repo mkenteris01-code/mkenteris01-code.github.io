@@ -2,7 +2,7 @@
 
 Automated data extraction pipeline for the scoping review: "The Convergence of Federated Learning, Knowledge Graphs, and Large Language Models for Language Instruction"
 
-**OSF Registration:** [Add OSF DOI after submission]
+**OSF Registration:** [[Add OSF DOI after submission](https://osf.io/ds74h/overview?view_only=d8be61e73da8453f9d83c4784d0f860c)]
 **Protocol ID:** FL-KG-LLM-SR-2025-01
 **Date:** December 2025
 
