@@ -9,11 +9,6 @@ header:
   overlay_color: "#5e616c"
   overlay_image: /assets/images/graphrag-architecture.png
   caption: "GraphRAG Architecture: Claude Code ↔ MCP Server ↔ Neo4j"
-
-layout: post
-title: "AI Research: Federated Learning & Knowledge Graphs"
-date: 2025-12-25
-categories: research
 ---
 
 ## The Problem: AI Has No Long-Term Memory
