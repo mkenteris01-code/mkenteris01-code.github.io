@@ -1,0 +1,47 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+ENV/
+env/
+
+# Environment variables (CRITICAL - never commit credentials)
+.env
+
+# Data files
+*.csv
+*.xlsx
+data/*.csv
+data/*.pdf
+data/raw/*.pdf
+data/raw/*.md
+!data/raw/.gitkeep
+
+# Embeddings cache
+embeddings/cache/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Test outputs
+test_*.json
+*_VALIDATION_REPORT.md
+
+# Neo4j dump files
+*.dump
+
+# Jupyter notebooks
+.ipynb_checkpoints/
