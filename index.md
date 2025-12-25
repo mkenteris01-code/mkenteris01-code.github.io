@@ -29,7 +29,7 @@ Systematic review of Federated Learning, Knowledge Graphs, and Large Language Mo
 
 ## Recent Writing
 
-### [Giving AI Memory: A GraphRAG Approach](ScholarGraph/_posts/2025-12-25-giving-ai-memory/)
+### [Giving AI Memory: A GraphRAG Approach](/blog/2025/12/25/giving-ai-memory/)
 
 How I gave Claude Code a permanent, structured memory using GraphRAG and MCP.
 
