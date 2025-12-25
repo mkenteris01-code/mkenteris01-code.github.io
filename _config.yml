@@ -34,3 +34,14 @@ collections:
   posts:
     output: true
     permalink: /blog/:year/:month/:day/:title/
+
+# Navigation menu
+navigation:
+  - title: Home
+    url: /
+  - title: Blog
+    url: /blog/
+  - title: ScholarGraph
+    url: /ScholarGraph/
+  - title: GitHub
+    url: https://github.com/mkenteris01-code
