@@ -9,7 +9,9 @@ header:
   overlay_color: "#5e616c"
   overlay_image: /assets/images/ScholarGraph_LinkedIn.png
   caption: "ScholarGraph: A Research Knowledge Graph with GraphRAG"
----
+
+![ScholarGraph: A Research Knowledge Graph with GraphRAG](/assets/images/ScholarGraph_LinkedIn.png)
+
 
 ## The Problem: AI Has No Long-Term Memory
 
