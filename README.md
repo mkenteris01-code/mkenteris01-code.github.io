@@ -1,3 +1,7 @@
+---
+layout: home
+---
+
 # Federated Learning & Knowledge Graphs Research
 
 ## Description
