@@ -7,8 +7,8 @@ author: Michael Kenteris
 excerpt: "How I gave Claude Code a permanent, structured memory using GraphRAG and the Model Context Protocol - moving from searching for information to synthesizing insights."
 header:
   overlay_color: "#5e616c"
-  overlay_image: /assets/images/graphrag-architecture.png
-  caption: "GraphRAG Architecture: Claude Code ↔ MCP Server ↔ Neo4j"
+  overlay_image: /assets/images/ScholarGraph_LinkedIn.png
+  caption: "ScholarGraph: A Research Knowledge Graph with GraphRAG"
 ---
 
 ## The Problem: AI Has No Long-Term Memory
