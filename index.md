@@ -1,6 +1,5 @@
 ---
 title: "Michael Kenteris - Code & Research"
-layout: home
 ---
 
 # Welcome
