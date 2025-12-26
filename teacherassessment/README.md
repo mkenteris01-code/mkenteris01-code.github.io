@@ -14,6 +14,17 @@ A lightweight web application designed for expert review and validation of CEFR 
 -   **Filtering**: Default view shows only flagged items requiring attention.
 -   **Multi-Level Support**: Dynamically loads all CEFR levels (A1, A1+, A2, B1, etc.) from the source Excel file.
 
+## 📸 Screenshot
+
+![CEFR Teacher Assessment Interface](screenshot.png)
+
+**The web interface** provides an intuitive review experience with:
+- Progress indicator showing completion status
+- Descriptor text with original and suggested classifications
+- Confidence rating selector (1-5)
+- Expert notes field for qualitative feedback
+- Navigation controls (Save & Next, Skip, Previous)
+
 ## 🛠️ Prerequisites
 
 -   Python 3.8+
