@@ -109,6 +109,8 @@ This involves:
 
 I built a Flask-based web application for expert review:
 
+![CEFR Teacher Assessment Interface](/teacherassessment/screenshot.png)
+
 **Features:**
 - Direct Excel integration (reads/writes `.xlsx` files)
 - Progress tracking (12/13 completed)
