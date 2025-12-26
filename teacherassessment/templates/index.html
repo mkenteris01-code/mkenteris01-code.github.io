@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CEFR Validator</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body>
+    <div class="app-container">
+        <header>
+            <div class="header-content">
+                <h1>CEFR Sociolinguistic Validation</h1>
+                <div class="progress-container">
+                    <span>Progress: <span id="progress-text">0/0</span></span>
+                    <div class="progress-bar-bg">
+                        <div id="progress-bar-fill" class="progress-bar-fill"></div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <main>
+            <div class="card-container">
+                <div id="loading" class="loading">Loading data...</div>
+
+                <div id="descriptor-card" class="descriptor-card hidden">
+                    <div class="card-header">
+                        <span id="level-badge" class="badge level-badge">Level</span>
+                        <span id="id-badge" class="badge id-badge">ID</span>
+                        <span id="flag-badge" class="badge flag-badge hidden">FLAGGED</span>
+                    </div>
+
+                    <div class="descriptor-content">
+                        <h2>Descriptor</h2>
+                        <p id="descriptor-text" class="descriptor-text"></p>
+                    </div>
+
+                    <div class="meta-grid">
+                        <div class="meta-item">
+                            <label>Currently Assigned</label>
+                            <div id="assigned-category" class="value"></div>
+                        </div>
+                        <div class="meta-item">
+                            <label>Evidence</label>
+                            <div id="evidence-text" class="value"></div>
+                        </div>
+                        <div class="meta-item">
+                            <label>Issue Type</label>
+                            <div id="issue-type" class="value"></div>
+                        </div>
+                    </div>
+
+                    <hr>
+
+                    <form id="validation-form">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label for="decision">Is the assigned category correct?</label>
+                                <select id="decision" name="decision" required>
+                                    <option value="" disabled selected>Select...</option>
+                                    <option value="YES">YES (Flag is Correct - Original is WRONG)</option>
+                                    <option value="NO">NO (Flag is Wrong - Original is CORRECT)</option>
+                                    <option value="MAYBE">MAYBE (Ambiguous)</option>
+                                </select>
+                                <small class="hint">Note: "YES" means the flag is valid (so the category is
+                                    wrong).</small>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="new-category">New Category</label>
+                                <select id="new-category" name="new-category">
+                                    <option value="" selected>Select if applicable...</option>
+                                    <option value="Sociolinguistic">Sociolinguistic</option>
+                                    <option value="Oral Interaction">Oral Interaction</option>
+                                    <option value="Pragmatic">Pragmatic</option>
+                                    <option value="Linguistic">Linguistic</option>
+                                    <option value="CONFIRM">CONFIRM (Original is correct)</option>
+                                    <option value="NEEDS DISCUSSION">NEEDS DISCUSSION</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="confidence">Confidence (1-5)</label>
+                                <div class="rating-group">
+                                    <input type="radio" name="confidence" id="c1" value="1"><label for="c1">1</label>
+                                    <input type="radio" name="confidence" id="c2" value="2"><label for="c2">2</label>
+                                    <input type="radio" name="confidence" id="c3" value="3"><label for="c3">3</label>
+                                    <input type="radio" name="confidence" id="c4" value="4"><label for="c4">4</label>
+                                    <input type="radio" name="confidence" id="c5" value="5"><label for="c5">5</label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="notes">Notes</label>
+                            <textarea id="notes" name="notes" rows="2"
+                                placeholder="Explain your decision if needed..."></textarea>
+                        </div>
+
+                        <div class="actions">
+                            <button type="button" id="prev-btn" class="btn secondary">Previous</button>
+                            <button type="submit" id="save-btn" class="btn primary">Save & Next</button>
+                            <button type="button" id="next-btn" class="btn secondary">Skip</button>
+                        </div>
+                        <div id="status-msg" class="status-msg"></div>
+                    </form>
+                </div>
+            </div>
+
+            <aside class="guide-panel">
+                <h3>Quick Guide</h3>
+                <div class="guide-content">
+                    <h4>Categories</h4>
+                    <ul>
+                        <li><strong>Sociolinguistic:</strong> Social conventions, register, politeness.</li>
+                        <li><strong>Oral Interaction:</strong> Turn-taking mechanics, speech acts (invitations, etc).
+                        </li>
+                        <li><strong>Pragmatic:</strong> Functional goals, coherence.</li>
+                        <li><strong>Linguistic:</strong> Vocab, grammar.</li>
+                    </ul>
+
+                    <h4>Decision Logic</h4>
+                    <p><strong>YES:</strong> The flag is correct. The descriptor is currently misclassified.</p>
+                    <p><strong>NO:</strong> The flag is a false positive. The descriptor is correct.</p>
+                </div>
+                <div class="filters">
+                    <label><input type="checkbox" id="filter-flagged-only" checked> Show Flagged Only</label>
+                </div>
+            </aside>
+        </main>
+    </div>
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+
+</html>

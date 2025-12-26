@@ -19,6 +19,15 @@ A GraphRAG system that gives Claude Code persistent memory of research literatur
 
 [Read more →](ScholarGraph/)
 
+### [CEFR Validation Tool](teacherassessment/) - Educational Standards Validation
+
+A triangulated validation framework for CEFR descriptors using keyword analysis, LLM ensembles, and expert review.
+
+- Discovered 7.3% true misclassification rate
+- Web-based expert review interface
+- Multi-method validation approach
+- Implications for LLM-grounded educational systems
+
 ### [FL-KG-LLM Scoping Review](fl-kg-llm-scoping-review/)
 
 Systematic review of Federated Learning, Knowledge Graphs, and Large Language Models convergence in language education.
@@ -28,6 +37,10 @@ Systematic review of Federated Learning, Knowledge Graphs, and Large Language Mo
 - CEFR-aligned pedagogical grounding
 
 ## Recent Writing
+
+### [CEFR Validation: How I Discovered 25% of Educational Standards Were Misclassified](/blog/2025/12/26/cefr-validation-triangulation/)
+
+Using keyword analysis, LLM ensembles, and expert review to validate CEFR descriptor classifications.
 
 ### [Giving AI Memory: A GraphRAG Approach](/blog/2025/12/25/giving-ai-memory/)
 
