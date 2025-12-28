@@ -24,7 +24,7 @@ Both compromise on what matters most for educational contexts: **trustworthy, tr
 
 ## Enter SmolLM2
 
-HuggingFace's [SmolLM2](https://huggingface.co/collections/HuggingFace/smollm-2-674272cf69a1029776fa2e8c) family isn't just another efficiency-focused model. What caught my attention was its **data-centric philosophy**.
+HuggingFace's [SmolLM2](https://huggingface.co/HuggingFaceTB/SmolLM2-1.7B-Instruct) family isn't just another efficiency-focused model. What caught my attention was its **data-centric philosophy**.
 
 ### Training Architecture
 
@@ -123,7 +123,7 @@ A hybrid AI validation architecture for English language learning, combining:
 
 ## Resources
 
-- **[SmolLM2-1.7B-Instruct](https://huggingface.co/HuggingFaceTB/smollm2-1.7b-instruct)** — Model card
+- **[SmolLM2-1.7B-Instruct](https://huggingface.co/HuggingFaceTB/SmolLM2-1.7B-Instruct)** — Model card
 - **[SmolLM2 Training Corpus](https://huggingface.co/datasets/HuggingFaceTB/smollm-corpus)** — Data documentation
 - **[AgenticAIpkg](https://github.com/mkenteris01-code/AgenticAIpkg)** — Main repository
 - **[University of the Aegean](https://www.aegean.gr/en)** — Institution
