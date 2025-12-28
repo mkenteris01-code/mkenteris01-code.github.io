@@ -38,6 +38,10 @@ Systematic review of Federated Learning, Knowledge Graphs, and Large Language Mo
 
 ## Recent Writing
 
+### [SmolLM2: A Data-Centric Alternative for Pedagogically-Grounded Language Model Validation](/blog/2025/12/28/smollm2-pedagogical-validation/)
+
+Why a 1.7B model trained on educational data outperforms generic alternatives for language learning validation—without sacrificing transparency, deployability, or privacy.
+
 ### [CEFR Validation: How I Discovered 25% of Educational Standards Were Misclassified](/blog/2025/12/26/cefr-validation-triangulation/)
 
 Using keyword analysis, LLM ensembles, and expert review to validate CEFR descriptor classifications.
