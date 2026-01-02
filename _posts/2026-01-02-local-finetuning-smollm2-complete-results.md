@@ -204,7 +204,7 @@ This was actually a valuable insight: the models learned that multiple presentat
 
 ### SmolLM2 Timeout Issues — Why Redundancy Matters
 
-During batch generation of those 22 C1 activities, SmolLM2 (running on port 8004) experienced timeouts on 4 of 22 requests—an 18% failure rate. Switching to Qwen 2.5-7B resolved it immediately.
+During batch generation of those 22 C1 activities, SmolLM2 (running on port 8004) experienced timeouts on 4 of 22 requests—an 18% failure rate. Rather than switching models, I kept SmolLM2 as the primary system and built reliability around it.
 
 This highlighted the need for:
 - Graceful timeout handling with user feedback
