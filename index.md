@@ -6,6 +6,27 @@ title: "Home"
 
 This is the code and research portfolio of **Michael Kenteris**, Postdoctoral Researcher at the University of the Aegean.
 
+## Affiliation
+
+**Intelligent Systems Laboratory (i-lab)**
+**Semantic Web of Things (SWoT) Group**
+Department of Information & Communication Systems Engineering
+University of the Aegean
+
+🔗 https://i-lab.aegean.gr/swot/
+
+---
+
+## Notice
+
+⚠️ **Pre-publication Code** - This repository contains unpublished research.
+
+**Copyright © 2025 University of the Aegean. All Rights Reserved.**
+
+Do NOT use, copy, modify, distribute, or cite without explicit permission from the author.
+
+---
+
 ## Featured Projects
 
 ### [ScholarGraph](ScholarGraph/) - Research Knowledge Graph with GraphRAG
