@@ -7,10 +7,8 @@ __pycache__/
 venv/
 ENV/
 env/
-
 # Environment variables (CRITICAL - never commit credentials)
 .env
-
 # Data files
 *.csv
 *.xlsx
@@ -19,31 +17,35 @@ data/*.pdf
 data/raw/*.pdf
 data/raw/*.md
 !data/raw/.gitkeep
-
 # Embeddings cache
 embeddings/cache/
-
 # IDE
 .vscode/
 .idea/
 *.swp
 *.swo
-
 # OS
 .DS_Store
 Thumbs.db
-
 # Logs
 *.log
-
 # Test outputs
 test_*.json
 *_VALIDATION_REPORT.md
-
 # Neo4j dump files
 *.dump
-
 # Jupyter notebooks
 .ipynb_checkpoints/
+# Additional safety
+*.bak
+*_backup.py
+*_fix.py
+temp_*.py
+*.tmp
 
-docs/
+# Local configuration (might have private paths)
+config/local_*
+
+# Large binaries (exceeds GitHub size limit)
+*.exe
+tools/pandoc-*/

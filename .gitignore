@@ -19,3 +19,30 @@ config.py
 # System Files
 .DS_Store
 Thumbs.db
+
+# Scoping review (private papers/data)
+scoping_review/
+
+# ScholarGraph private files
+ScholarGraph/.env
+ScholarGraph/all_docs.json
+ScholarGraph/corpus_titles.txt
+ScholarGraph/docs_clean.json
+ScholarGraph/document_inventory.txt
+ScholarGraph/TEMPORAL_VERSIONING_DESIGN.md
+ScholarGraph/fix_batch_ingester.py
+ScholarGraph/rkg_fix_supersession.py
+ScholarGraph/mcp_server_example.py
+ScholarGraph/embeddings/cache/
+
+# Temporary files
+*.bak
+*_backup.py
+*_fix.py
+temp_*.py
+*.tmp
+*.json
+
+# Session files
+GITHUB_UPLOAD_PLAN.md
+setup_scoping_review_repo.py

@@ -25,7 +25,8 @@ class ScholarGraphTools:
         mode: str = "hybrid",
         k: int = 5,
         filter_corpus: Optional[bool] = None,
-        days_ago: Optional[int] = None
+        days_ago: Optional[int] = None,
+        only_latest: bool = True
     ) -> Dict[str, Any]:
         """
         Search research papers in ScholarGraph.
@@ -36,6 +37,7 @@ class ScholarGraphTools:
             k: Number of results to return
             filter_corpus: If True, only search scoping review corpus; if False, exclude corpus
             days_ago: If specified, only return documents from last N days (default: all time)
+            only_latest: If True, only search latest (non-superseded) documents (default: True)
 
         Returns:
             Dict with search results and metadata
@@ -57,15 +59,15 @@ class ScholarGraphTools:
                 gpu_client = GPURigClient()
                 generator = EmbeddingGenerator(gpu_client=gpu_client)
                 searcher = SemanticSearch(self.neo4j_client, generator)
-                results = searcher.search_chunks(query, k=k)
+                results = searcher.search_chunks(query, k=k, only_latest=only_latest)
             elif mode == "keyword":
                 searcher = KeywordSearch(self.neo4j_client)
-                results = searcher.search_chunks(query, k=k)
+                results = searcher.search_chunks(query, k=k, only_latest=only_latest)
             else:  # hybrid
                 gpu_client = GPURigClient()
                 generator = EmbeddingGenerator(gpu_client=gpu_client)
                 searcher = HybridSearch(self.neo4j_client, generator)
-                results = searcher.search_chunks(query, k=k)
+                results = searcher.search_chunks(query, k=k, only_latest=only_latest)
 
             # Apply corpus and date filters if needed
             if filter_clause or date_filter_clause:
@@ -315,6 +317,86 @@ class ScholarGraphTools:
             return "MODERATELY RELEVANT - Addresses one research gap"
         else:
             return "LIMITED RELEVANCE - Does not address identified research gaps"
+
+    async def get_superseded_documents(self) -> Dict[str, Any]:
+        """
+        Get all superseded documents with their newer versions.
+
+        Returns:
+            Dict with list of superseded documents
+        """
+        try:
+            query = """
+            MATCH (old:Document)
+            WHERE old.is_latest = false
+            OPTIONAL MATCH (new:Document {document_id: old.superseded_by})
+            RETURN old.document_id AS document_id,
+                   old.title AS title,
+                   old.superseded_at AS superseded_at,
+                   new.document_id AS superseded_by_id,
+                   new.title AS superseded_by_title,
+                   new.ingestion_date AS newer_ingestion_date
+            ORDER BY old.superseded_at DESC
+            """
+
+            results = self.neo4j_client.execute_query(query)
+
+            return {
+                "success": True,
+                "count": len(results),
+                "superseded": results
+            }
+
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
+    async def get_document_versions(self, document_title: str) -> Dict[str, Any]:
+        """
+        Get all versions of a document (superseded and current).
+
+        Args:
+            document_title: Title or partial title of document
+
+        Returns:
+            Dict with version chain
+        """
+        try:
+            query = """
+            MATCH (d:Document)
+            WHERE toLower(d.title) CONTAINS toLower($title)
+            MATCH (d)-[:SUPERSEDES*0..]-(version:Document)
+            WITH DISTINCT version
+            RETURN version.document_id AS document_id,
+                   version.title AS title,
+                   version.is_latest AS is_latest,
+                   version.ingestion_date AS ingestion_date,
+                   version.superseded_by AS superseded_by,
+                   version.superseded_at AS superseded_at
+            ORDER BY version.ingestion_date DESC
+            """
+
+            results = self.neo4j_client.execute_query(query, {"title": document_title})
+
+            if not results:
+                return {
+                    "success": False,
+                    "error": f"No versions found for: {document_title}"
+                }
+
+            return {
+                "success": True,
+                "count": len(results),
+                "versions": results
+            }
+
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e)
+            }
 
     def close(self):
         """Close database connections."""
