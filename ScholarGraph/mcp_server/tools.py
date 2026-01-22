@@ -693,7 +693,7 @@ class ScholarGraphTools:
         import os
         from pathlib import Path
         from datetime import datetime
-        from .ingestion.batch_ingester import BatchIngester
+        from ingestion.batch_ingester import BatchIngester
 
         try:
             path = Path(file_path)
@@ -811,7 +811,7 @@ class ScholarGraphTools:
             Dict with batch ingestion results and statistics
         """
         from pathlib import Path
-        from .ingestion.batch_ingester import BatchIngester
+        from ingestion.batch_ingester import BatchIngester
 
         try:
             dir_path = Path(directory)
@@ -1052,7 +1052,7 @@ class ScholarGraphTools:
             ingest_missing_sessions(date_from="2026-01-18", date_to="2026-01-20")
         """
         from pathlib import Path
-        from .ingestion.batch_ingester import BatchIngester
+        from ingestion.batch_ingester import BatchIngester
 
         try:
             sessions_path = Path(sessions_dir)
