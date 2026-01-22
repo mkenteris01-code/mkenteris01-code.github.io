@@ -2,10 +2,17 @@
 Neo4j database client with connection pooling and retry logic.
 """
 
+import sys
+import io
 from typing import Any, Optional, List, Dict
 from neo4j import GraphDatabase, Driver, Session, Result
 from neo4j.exceptions import ServiceUnavailable, AuthError, SessionExpired
 from contextlib import contextmanager
+
+# Fix Windows encoding issues for Neo4j
+if sys.platform == 'win32':
+    sys.stdout.reconfigure(encoding='utf-8')
+    sys.stderr.reconfigure(encoding='utf-8')
 
 from config import get_settings
 from .retry_handler import retry_with_exponential_backoff
