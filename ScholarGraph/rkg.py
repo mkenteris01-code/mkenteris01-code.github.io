@@ -7,6 +7,9 @@ Usage:
     rkg ingest <path>                        # Ingest documents
     rkg search "<query>" [--mode MODE]       # Search knowledge graph
     rkg stats                                # Show database statistics
+    rkg link <older_id> <newer_id>           # Link two documents (SUPERSEDES)
+    rkg list                                 # List all documents
+    rkg mark_superseded <older> <newer>      # Mark document as superseded
 """
 
 import sys
@@ -384,6 +387,57 @@ def mark_superseded(older_doc_id, newer_doc_id, reason):
                 click.echo(f"Document marked as superseded")
             else:
                 click.echo("Failed to mark supersession", err=True)
+
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+
+
+@cli.command()
+@click.argument('older_doc_id')
+@click.argument('newer_doc_id')
+@click.option('--reason', default='manual_link', help='Reason for linking documents')
+def link(older_doc_id, newer_doc_id, reason):
+    """Link two documents (alias for mark_superseded). Creates SUPERSEDES relationship."""
+    try:
+        with Neo4jClient() as client:
+            from graph.temporal_schema import TemporalSchemaManager
+            
+            manager = TemporalSchemaManager(client)
+            
+            # Verify both documents exist
+            check_query = """
+            MATCH (d:Document)
+            WHERE d.document_id IN (, )
+            RETURN d.document_id as id, d.title as title
+            """
+            results = client.execute_query(
+                check_query,
+                {"older_id": older_doc_id, "newer_id": newer_doc_id}
+            )
+            
+            if len(results) < 2:
+                click.echo(f"Error: One or both documents not found", err=True)
+                return
+            
+            # Get titles for display
+            older_title = next((r['title'] for r in results if r['id'] == older_doc_id), older_doc_id)
+            newer_title = next((r['title'] for r in results if r['id'] == newer_doc_id), newer_doc_id)
+            
+            success = manager.mark_document_superseded(
+                document_id=older_doc_id,
+                superseded_by=newer_doc_id
+            )
+            manager.create_supersedes_relationship(
+                newer_document_id=newer_doc_id,
+                older_document_id=older_doc_id,
+                reason=reason
+            )
+            
+            if success:
+                click.echo(f"✓ Linked: {newer_title} → {older_title}")
+                click.echo(f"  Reason: {reason}")
+            else:
+                click.echo("Failed to link documents", err=True)
 
     except Exception as e:
         click.echo(f"Error: {e}", err=True)

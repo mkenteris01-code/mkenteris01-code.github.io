@@ -26,7 +26,8 @@ class ScholarGraphTools:
         k: int = 5,
         filter_corpus: Optional[bool] = None,
         days_ago: Optional[int] = None,
-        only_latest: bool = True
+        only_latest: bool = True,
+        content_mode: str = "preview"
     ) -> Dict[str, Any]:
         """
         Search research papers in ScholarGraph.
@@ -38,11 +39,22 @@ class ScholarGraphTools:
             filter_corpus: If True, only search scoping review corpus; if False, exclude corpus
             days_ago: If specified, only return documents from last N days (default: all time)
             only_latest: If True, only search latest (non-superseded) documents (default: True)
+            content_mode: How to handle content - 'preview' (800 chars), 'summary', or 'full' (default: 'preview')
 
         Returns:
             Dict with search results and metadata
         """
         try:
+            # Validate content_mode
+            valid_modes = ["preview", "summary", "full"]
+            if content_mode not in valid_modes:
+                return {
+                    "success": False,
+                    "error": f"Invalid content_mode '{content_mode}'. Must be one of: {valid_modes}",
+                    "query": query,
+                    "mode": mode
+                }
+
             # Build filter clause if needed
             filter_clause = ""
             if filter_corpus is True:
@@ -59,7 +71,7 @@ class ScholarGraphTools:
                 gpu_client = GPURigClient()
                 generator = EmbeddingGenerator(gpu_client=gpu_client)
                 searcher = SemanticSearch(self.neo4j_client, generator)
-                results = searcher.search_chunks(query, k=k, only_latest=only_latest)
+                results = searcher.search_chunks(query, k=k, only_latest=only_latest, content_mode=content_mode)
             elif mode == "keyword":
                 searcher = KeywordSearch(self.neo4j_client)
                 results = searcher.search_chunks(query, k=k, only_latest=only_latest)
@@ -67,7 +79,7 @@ class ScholarGraphTools:
                 gpu_client = GPURigClient()
                 generator = EmbeddingGenerator(gpu_client=gpu_client)
                 searcher = HybridSearch(self.neo4j_client, generator)
-                results = searcher.search_chunks(query, k=k, only_latest=only_latest)
+                results = searcher.search_chunks(query, k=k, only_latest=only_latest, content_mode=content_mode)
 
             # Apply corpus and date filters if needed
             if filter_clause or date_filter_clause:
@@ -93,6 +105,7 @@ class ScholarGraphTools:
                 "success": True,
                 "query": query,
                 "mode": mode,
+                "content_mode": content_mode,
                 "count": len(results),
                 "results": results
             }
@@ -390,6 +403,265 @@ class ScholarGraphTools:
                 "success": True,
                 "count": len(results),
                 "versions": results
+            }
+
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
+
+    async def link_documents(
+        self,
+        older_doc_id: str,
+        newer_doc_id: str,
+        reason: str = "manual_link"
+    ) -> Dict[str, Any]:
+        """
+        Link two documents by creating a SUPERSEDES relationship.
+
+        Args:
+            older_doc_id: ID of the older (superseded) document
+            newer_doc_id: ID of the newer document
+            reason: Reason for the link (default: "manual_link")
+
+        Returns:
+            Dict with success status and details
+        """
+        try:
+            from graph.temporal_schema import TemporalSchemaManager
+            from datetime import datetime
+
+            # Verify both documents exist
+            check_query = """
+            MATCH (d:Document)
+            WHERE d.document_id IN (, )
+            RETURN d.document_id as id, d.title as title
+            """
+            results = self.neo4j_client.execute_query(
+                check_query,
+                {"older_id": older_doc_id, "newer_id": newer_doc_id}
+            )
+
+            if len(results) < 2:
+                found_ids = [r['id'] for r in results]
+                missing = []
+                if older_doc_id not in found_ids:
+                    missing.append(f"older_doc_id: {older_doc_id}")
+                if newer_doc_id not in found_ids:
+                    missing.append(f"newer_doc_id: {newer_doc_id}")
+                return {
+                    "success": False,
+                    "error": f"Documents not found: {', '.join(missing)}"
+                }
+
+            # Create the supersession relationship
+            temporal_manager = TemporalSchemaManager(self.neo4j_client)
+
+            # Mark older as superseded
+            success = temporal_manager.mark_document_superseded(
+                document_id=older_doc_id,
+                superseded_by=newer_doc_id
+            )
+
+            if not success:
+                return {
+                    "success": False,
+                    "error": "Failed to mark document as superseded"
+                }
+
+            # Create SUPERSEDES relationship
+            success = temporal_manager.create_supersedes_relationship(
+                newer_document_id=newer_doc_id,
+                older_document_id=older_doc_id,
+                reason=reason,
+                timestamp=datetime.now().isoformat()
+            )
+
+            if success:
+                # Get titles for response
+                older_title = next((r['title'] for r in results if r['id'] == older_doc_id), "Unknown")
+                newer_title = next((r['title'] for r in results if r['id'] == newer_doc_id), "Unknown")
+
+                return {
+                    "success": True,
+                    "message": f"Linked '{newer_title}' → '{older_title}'",
+                    "older_document": {"id": older_doc_id, "title": older_title},
+                    "newer_document": {"id": newer_doc_id, "title": newer_title},
+                    "relationship": "SUPERSEDES",
+                    "reason": reason
+                }
+            else:
+                return {
+                    "success": False,
+                    "error": "Failed to create SUPERSEDES relationship"
+                }
+
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
+    async def check_sessions_ingested(
+        self,
+        sessions_dir: str = r"C:\projects\AgenticAIpkg\docs\knowledge\sessions",
+        limit: int = 100
+    ) -> Dict[str, Any]:
+        """
+        Check which session files are ingested into ScholarGraph.
+
+        Fast comparison between session files in directory and documents in Neo4j.
+
+        Args:
+            sessions_dir: Path to sessions directory (default: AgenticAIpkg sessions)
+            limit: Maximum number of session files to check (default: 100)
+
+        Returns:
+            Dict with ingested, missing, and stats
+        """
+        import os
+        from pathlib import Path
+
+        try:
+            # Get session files from directory
+            sessions_path = Path(sessions_dir)
+            if not sessions_path.exists():
+                return {
+                    "success": False,
+                    "error": f"Sessions directory not found: {sessions_dir}"
+                }
+
+            session_files = list(sessions_path.glob("*.md"))
+            session_files = sorted(session_files, key=lambda x: x.name, reverse=True)[:limit]
+
+            # Get all file_paths from Neo4j in one query
+            query = """
+            MATCH (d:Document)
+            WHERE d.file_path IS NOT NULL
+               AND (d.is_latest = true OR d.is_latest IS NULL)
+            RETURN d.file_path as file_path, d.title as title
+            """
+            results = self.neo4j_client.execute_query(query)
+
+            # Create set of extracted filenames from Neo4j file_paths
+            # File paths in Neo4j are like: "...sessions==filename.md"
+            ingested_basenames = set()
+            for r in results:
+                fp = r.get('file_path', '')
+                if '==' in fp:
+                    # Extract filename after ==
+                    basename = fp.split('==')[-1].lower()
+                    ingested_basenames.add(basename)
+                elif fp:
+                    # Fallback: get basename from path
+                    basename = Path(fp).name.lower()
+                    ingested_basenames.add(basename)
+
+            # Compare
+            ingested = []
+            missing = []
+
+            for sf in session_files:
+                basename = sf.name.lower()
+                if basename in ingested_basenames:
+                    ingested.append(sf.name)
+                else:
+                    missing.append(sf.name)
+
+            return {
+                "success": True,
+                "stats": {
+                    "total_sessions": len(session_files),
+                    "ingested": len(ingested),
+                    "missing": len(missing),
+                    "coverage_percent": round(100 * len(ingested) / len(session_files), 1) if session_files else 0
+                },
+                "ingested": ingested[:50],  # Limit response size
+                "ingested_truncated": len(ingested) > 50,
+                "missing": missing[:50],
+                "missing_truncated": len(missing) > 50,
+                "sessions_directory": str(sessions_dir)
+            }
+
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
+    async def get_recent_sessions(
+        self,
+        days: int = 7,
+        limit: int = 20
+    ) -> Dict[str, Any]:
+        """
+        Get recently ingested session documents.
+
+        Args:
+            days: Number of days to look back (default: 7)
+            limit: Maximum results to return (default: 20)
+
+        Returns:
+            Dict with recent session documents
+        """
+        try:
+            # Get sessions sorted by ingestion_date, we'll filter in Python
+            # This avoids Cypher datetime parsing issues
+            query = """
+            MATCH (d:Document)
+            WHERE d.file_path CONTAINS 'sessions'
+               AND (d.is_latest = true OR d.is_latest IS NULL)
+               AND d.ingestion_date IS NOT NULL
+            RETURN d.title as title,
+                   d.file_path as file_path,
+                   d.ingestion_date as date,
+                   d.document_type as doc_type
+            ORDER BY d.ingestion_date DESC
+            LIMIT $limit
+            """
+
+            results = self.neo4j_client.execute_query(
+                query,
+                parameters={"limit": limit * 2}  # Get more to account for date filtering
+            )
+
+            # Filter by date in Python
+            from datetime import datetime, timedelta
+            cutoff_date = datetime.now() - timedelta(days=days)
+
+            sessions = []
+            for r in results:
+                date_str = r.get('date', '')
+                try:
+                    # Parse the ISO datetime string
+                    if '.' in date_str:
+                        # Strip microseconds for parsing
+                        date_str = date_str.split('.')[0]
+                    doc_date = datetime.fromisoformat(date_str)
+
+                    if doc_date > cutoff_date:
+                        fp = r.get('file_path', '')
+                        if '==' in fp:
+                            filename = fp.split('==')[-1]
+                        else:
+                            filename = fp.split('/')[-1].split('\\')[-1]
+                        sessions.append({
+                            "filename": filename,
+                            "title": r.get('title', '')[:80],
+                            "date": r.get('date', ''),
+                            "doc_type": r.get('doc_type', '')
+                        })
+                except (ValueError, TypeError):
+                    # Skip if date can't be parsed
+                    continue
+
+            return {
+                "success": True,
+                "days": days,
+                "count": len(sessions),
+                "sessions": sessions
             }
 
         except Exception as e:

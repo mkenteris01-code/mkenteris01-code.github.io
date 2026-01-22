@@ -6,6 +6,7 @@ Runs locally on port 8100 with access to Neo4j database.
 """
 
 import asyncio
+import json
 import logging
 from typing import Optional
 
@@ -33,6 +34,25 @@ resources = ScholarGraphResources()
 
 
 # =============================================================================
+# UTILITIES
+# =============================================================================
+def _to_json(obj: dict, compact: bool = True) -> str:
+    """
+    Convert dict to JSON with optional compact formatting.
+
+    Args:
+        obj: Dictionary to convert
+        compact: If True, use compact separators (no whitespace)
+
+    Returns:
+        JSON string
+    """
+    if compact:
+        return json.dumps(obj, separators=(',', ':'))
+    return json.dumps(obj, indent=2)
+
+
+# =============================================================================
 # TOOLS: Claude Code can call these directly
 # =============================================================================
 
@@ -43,7 +63,8 @@ async def list_tools() -> list[Tool]:
         Tool(
             name="search_papers",
             description="Search research papers using semantic, keyword, or hybrid search. "
-                       "Supports filtering by scoping review corpus and by recency (days_ago).",
+                       "Supports filtering by scoping review corpus and by recency (days_ago). "
+                       "Returns optimized content previews by default (800 chars). Use content_mode='full' for complete content.",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -71,6 +92,12 @@ async def list_tools() -> list[Tool]:
                         "type": "integer",
                         "description": "Only return documents from the last N days (default: all time). Use 7-30 for recent info.",
                         "default": None
+                    },
+                    "content_mode": {
+                        "type": "string",
+                        "enum": ["preview", "summary", "full"],
+                        "description": "How much content to return: 'preview' (800 chars, default), 'summary' (chunk summaries only), 'full' (complete content)",
+                        "default": "preview"
                     }
                 },
                 "required": ["query"]
@@ -92,7 +119,7 @@ async def list_tools() -> list[Tool]:
         ),
         Tool(
             name="list_corpus_papers",
-            description="List all 51 scoping review corpus papers with their study IDs.",
+            description="List all scoping review corpus papers with their study IDs.",
             inputSchema={
                 "type": "object",
                 "properties": {}
@@ -120,6 +147,67 @@ async def list_tools() -> list[Tool]:
                 "type": "object",
                 "properties": {}
             }
+        ),
+        Tool(
+            name="check_sessions_ingested",
+            description="Check which session files from your sessions directory are ingested into ScholarGraph. "
+                       "Fast comparison returns stats on ingested vs missing sessions.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "sessions_dir": {
+                        "type": "string",
+                        "description": "Path to sessions directory (default: AgenticAIpkg sessions)"
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Maximum number of session files to check (default: 100)",
+                        "default": 100
+                    }
+                }
+            }
+        ),
+        Tool(
+            name="get_recent_sessions",
+            description="Get recently ingested session documents from ScholarGraph. "
+                       "Shows sessions added in the last N days.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "days": {
+                        "type": "integer",
+                        "description": "Number of days to look back (default: 7)",
+                        "default": 7
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Maximum results to return (default: 20)",
+                        "default": 20
+                    }
+                }
+            }
+        ),
+        Tool(
+            name="link_documents",
+            description="Link two documents by creating a SUPERSEDES relationship (newer supersedes older).",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "older_doc_id": {
+                        "type": "string",
+                        "description": "ID of the older (superseded) document"
+                    },
+                    "newer_doc_id": {
+                        "type": "string",
+                        "description": "ID of the newer document"
+                    },
+                    "reason": {
+                        "type": "string",
+                        "description": "Reason for the link (default: 'manual_link')"
+                    }
+                },
+                "required": ["older_doc_id", "newer_doc_id"]
+            }
         )
     ]
 
@@ -134,7 +222,8 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 mode=arguments.get("mode", "hybrid"),
                 k=arguments.get("k", 5),
                 filter_corpus=arguments.get("filter_corpus"),
-                days_ago=arguments.get("days_ago")
+                days_ago=arguments.get("days_ago"),
+                content_mode=arguments.get("content_mode", "preview")
             )
         elif name == "get_paper_details":
             result = await tools.get_paper_details(
@@ -148,19 +237,34 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             )
         elif name == "get_database_stats":
             result = await tools.get_database_stats()
+        elif name == "check_sessions_ingested":
+            result = await tools.check_sessions_ingested(
+                sessions_dir=arguments.get("sessions_dir", r"C:\projects\AgenticAIpkg\docs\knowledge\sessions"),
+                limit=arguments.get("limit", 100)
+            )
+        elif name == "get_recent_sessions":
+            result = await tools.get_recent_sessions(
+                days=arguments.get("days", 7),
+                limit=arguments.get("limit", 20)
+            )
+        elif name == "link_documents":
+            result = await tools.link_documents(
+                older_doc_id=arguments["older_doc_id"],
+                newer_doc_id=arguments["newer_doc_id"],
+                reason=arguments.get("reason", "manual_link")
+            )
         else:
             result = {"success": False, "error": f"Unknown tool: {name}"}
 
-        # Format result as text
-        import json
-        result_text = json.dumps(result, indent=2)
+        # Format result as compact JSON (saves ~20% space)
+        result_text = _to_json(result, compact=True)
 
         return [TextContent(type="text", text=result_text)]
 
     except Exception as e:
         logger.error(f"Error calling tool {name}: {e}", exc_info=True)
         error_result = {"success": False, "error": str(e)}
-        return [TextContent(type="text", text=json.dumps(error_result, indent=2))]
+        return [TextContent(type="text", text=_to_json(error_result, compact=True))]
 
 
 # =============================================================================
@@ -180,7 +284,7 @@ async def list_resources() -> list[Resource]:
         Resource(
             uri="research://corpus",
             name="Scoping Review Corpus",
-            description="The 51 papers from the scoping review corpus",
+            description="The papers from the scoping review corpus",
             mimeType="application/json"
         ),
         Resource(
@@ -224,8 +328,7 @@ async def read_resource(uri: str) -> str:
 
     except Exception as e:
         logger.error(f"Error reading resource {uri}: {e}", exc_info=True)
-        import json
-        return json.dumps({"error": str(e)}, indent=2)
+        return _to_json({"error": str(e)}, compact=False)
 
 
 # =============================================================================

@@ -149,7 +149,8 @@ class BatchIngester:
                 date=metadata.get('date') or extracted_metadata.get('extracted_date'),
                 doi=metadata.get('doi'),
                 metadata=metadata,
-                file_modified_at=file_modified_at
+                file_modified_at=file_modified_at,
+                ingestion_date=ingestion_date
             )
 
             if self.supersession_detector:

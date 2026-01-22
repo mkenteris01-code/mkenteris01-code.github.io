@@ -6,8 +6,17 @@ A research knowledge graph platform that transforms academic documents into an i
 
 [![Python](https://img.shields.io/badge/Python-3.9+-blue.svg)](https://www.python.org/)
 [![Neo4j](https://img.shields.io/badge/Neo4j-5.13+-008CC1.svg)](https://neo4j.com/)
-[![GraphRAG](https://img.shields.io/badge/GraphRAG-Implemented-brightgreen.svg)](#graphrag-architecture)
+[![GraphRAG](https://img.shields.io/badge/GraphRAG-Implemented-brightgreen.svg)](#how-it-works)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+
+---
+
+## Quick Links
+
+- [How It Works](#how-it-works) - Understand the GraphRAG pipeline
+- [Installation](#installation) - Get up and running
+- [Usage](#usage) - CLI, Python API, and MCP integration
+- [ARCHITECTURE.md](ARCHITECTURE.md) - Deep dive into system design
 
 ---
 
@@ -21,92 +30,54 @@ ScholarGraph is a **Personal Knowledge Graph** designed for researchers who want
 - **Query** via CLI, Python API, or Claude Code (MCP integration)
 - **Discover** connections between papers through graph traversal
 
-## Highlights
+### Highlights
 
-- **Semantic Search** - Vector embeddings capture meaning, not just words
-- **Hybrid Retrieval** - 70% semantic + 30% keyword for best results
-- **GraphRAG Architecture** - Documents → Chunks → Topics → Concepts graph
-- **Temporal Versioning** - Auto-detects when newer papers supersede older ones
-- **MCP Server** - Native Claude Code integration for AI-powered research
-- **Local GPU** - Qwen/Mistral embeddings via your GPU rig (or cloud fallback)
-
----
-
-## Features Overview
-
-| Category | Features |
-|----------|----------|
-| **Ingestion** | PDF & Markdown parsing, metadata extraction, smart chunking |
-| **Search** | Semantic, Keyword, Hybrid modes with configurable weights |
-| **Graph** | Neo4j native, vector indexes, full-text search, relationship traversal |
-| **Versioning** | Temporal schema, supersession detection, version chains |
-| **AI Integration** | MCP server for Claude Code, GPU rig embeddings |
-| **CLI** | Complete command-line interface for all operations |
+| Feature | Description |
+|---------|-------------|
+| **Semantic Search** | Vector embeddings capture meaning, not just words |
+| **Hybrid Retrieval** | 70% semantic + 30% keyword for best results |
+| **GraphRAG** | Documents → Chunks → Topics → Concepts graph |
+| **Temporal Versioning** | Auto-detects when newer papers supersede older ones |
+| **MCP Server** | Native Claude Code integration for AI-powered research |
+| **Local GPU** | Qwen/Mistral embeddings via your GPU rig (or cloud fallback) |
 
 ---
 
-## GraphRAG Architecture
+## How It Works
 
-ScholarGraph implements **GraphRAG** (Retrieval-Augmented Generation with Graph) principles:
+ScholarGraph implements **GraphRAG** (Retrieval-Augmented Generation with Graph) to transform static documents into an intelligent knowledge network.
+
+### The Pipeline
 
 ```
-LAYER 1: Documents     → PDF, Markdown files
-LAYER 2: Chunks        → Text segments (~3500 words, 400 overlap)
-LAYER 3: Embeddings    → 768-dim vectors, cosine similarity
-LAYER 4: Knowledge Graph → Documents, Topics, Concepts, Relationships
+┌─────────────┐    ┌─────────────┐    ┌─────────────┐    ┌─────────────┐
+│  PDF / MD   │ -> │   Chunks    │ -> │  Embeddings │ -> │   Graph     │
+│  Documents  │    │  ~3500 words│    │   768-dim   │    │  Database   │
+└─────────────┘    └─────────────┘    └─────────────┘    └─────────────┘
 ```
+
+1. **Ingest**: Parse PDFs and Markdown files, extract metadata
+2. **Chunk**: Split into ~3500-word segments with 400-word overlap
+3. **Embed**: Generate 768-dimensional vectors (Qwen 2.5 via GPU or sentence-transformers)
+4. **Graph**: Store in Neo4j with Documents, Chunks, Topics, Concepts, and relationships
+5. **Search**: Query via semantic, keyword, or hybrid search
+6. **Retrieve**: Return relevant passages for RAG-augmented AI responses
 
 ### Graph Schema
 
-**Node Types:**
-- **Document**: Research papers, articles (title, authors, date, doi, `is_latest`, `version`)
-- **Chunk**: Text segments (~3500 words) with position tracking
-- **Topic**: Research themes with confidence scores
-- **Concept**: Domain entities and terminology
+**Nodes:**
+- `Document` - Papers with title, authors, version tracking
+- `Chunk` - Text segments with embeddings
+- `Topic` - Research themes with confidence scores
+- `Concept` - Domain entities and terminology
 
-**Relationship Types:**
-- **CONTAINS**: Document → Chunk
-- **NEXT_CHUNK**: Chunk → Chunk (sequential ordering)
-- **DISCUSSES_TOPIC**: Document → Topic (with confidence scores)
-- **ABOUT_CONCEPT**: Document → Concept
-- **SUPERSEDES**: New → Old Document (with reason, timestamp)
+**Relationships:**
+- `CONTAINS` - Document → Chunk
+- `NEXT_CHUNK` - Chunk → Chunk (sequential)
+- `DISCUSSES_TOPIC` - Document/Chunk → Topic
+- `SUPERSEDES` - New → Old (version tracking)
 
----
-
-## Tech Stack
-
-### Core Technologies
-
-| Component | Technology | Purpose |
-|-----------|------------|---------|
-| **Database** | Neo4j 5.13+ | Graph DB with native vector search |
-| **Language** | Python 3.9+ | Core implementation |
-| **Config** | Pydantic Settings | Type-safe configuration |
-| **CLI** | Click | Command-line interface |
-
-### GraphRAG Components
-
-| Component | Technology | Implementation |
-|-----------|------------|----------------|
-| **Vector Search** | Neo4j Native Vector Index | Cosine similarity on 768-dim embeddings |
-| **Chunking** | Custom Word-based Algorithm | 3500 words ± 400 overlap |
-| **Entity Extraction** | LLM-assisted (Qwen 2.5) | Topics, concepts, keywords |
-| **Full-text Search** | Neo4j Full-text Index | BM25-style keyword retrieval |
-| **Hybrid Scoring** | Weighted Fusion | 0.7 × semantic + 0.3 × keyword |
-
-### Document Processing
-
-- **PDF Parsing** - PyPDF2, pypdf
-- **Markdown** - python-frontmatter, markdown
-- **Metadata Extraction** - LLM-assisted
-
-### AI Integration
-
-| Component | Technology |
-|-----------|------------|
-| **Embeddings** | Qwen/Mistral (GPU rig) or sentence-transformers |
-| **MCP Server** | mcp >= 0.9.0, Uvicorn, FastAPI |
-| **GPU Backend** | Qwen 2.5 7B @ 192.168.1.150:8000 |
+> **For detailed architecture, data flow, and design decisions, see [ARCHITECTURE.md](ARCHITECTURE.md)**
 
 ---
 
@@ -129,7 +100,7 @@ cp .env.example .env
 # Edit .env with your Neo4j credentials
 ```
 
-## Environment Variables
+### Environment Variables
 
 Create `.env` in project root:
 
@@ -180,10 +151,15 @@ rkg list
 # Database statistics
 rkg stats
 
+# Link documents (create SUPERSEDES relationship)
+rkg link <older_doc_id> <newer_doc_id>           # link newer → older
+rkg link <older> <newer> --reason "updated_data"  # with reason
+
 # Temporal versioning
 rkg init-temporal                    # initialize versioning
 rkg detect-supersessions --dry-run   # preview supersession
 rkg supersession-summary             # show version stats
+rkg mark-superseded <older> <newer>  # alternative to link command
 ```
 
 ### Python API
@@ -209,65 +185,29 @@ results = searcher.search_chunks("machine learning", k=10)
 
 ### MCP Server (Claude Code)
 
-Configure in Claude Desktop settings:
+Configure in Claude Desktop settings (`claude_desktop_config.json`):
 
 ```json
 {
   "mcpServers": {
     "scholargraph": {
       "command": "python",
-      "args": ["/path/to/ScholarGraph/mcp_server/server.py"]
+      "args": ["C:/path/to/ScholarGraph/mcp_server/server.py"]
     }
   }
 }
 ```
 
-Available MCP Tools:
-- `search_papers` - Semantic/keyword/hybrid search
-- `get_superseded_documents` - View superseded versions
-- `get_document_versions` - Get all versions of a document
-- `list_corpus_papers` - List scoping review corpus
-- `get_database_stats` - Database statistics
+**Available MCP Tools:**
 
----
-
-## GraphRAG Technologies Implemented
-
-### 1. Hierarchical Chunking
-
-- Word-based chunking (default: 3500 words)
-- Overlapping chunks (default: 400 words)
-- Character position tracking for source reference
-- Sequential ordering via NEXT_CHUNK relationships
-
-### 2. Vector Index with Neo4j
-
-```cypher
-CALL db.index.vector.queryNodes('chunk_embeddings', $k, $embedding)
-YIELD node, score
-MATCH (d:Document)-[:CONTAINS]->(node)
-WHERE d.is_latest = true
-RETURN node.content, d.title, score
-```
-
-### 3. Hybrid Retrieval Fusion
-
-```
-hybrid_score = 0.7 * normalized_semantic + 0.3 * normalized_keyword
-```
-
-### 4. Entity-Relationship Graph
-
-- Automatic topic extraction
-- Concept identification
-- Confidence-scored relationships
-
-### 5. Temporal Versioning
-
-- Automatic supersession detection
-- Title similarity matching (0.85 threshold)
-- Session document pattern recognition
-- Version chain traversal
+| Tool | Purpose |
+|------|---------|
+| `search_papers` | Semantic/keyword/hybrid search with corpus & recency filters |
+| `get_paper_details` | Get full paper metadata by title (partial match) |
+| `list_corpus_papers` | List scoping review corpus papers |
+| `compare_to_corpus_gaps` | Check if paper addresses research gaps |
+| `get_database_stats` | Node counts, corpus size, etc. |
+| `link_documents` | Link two documents (creates SUPERSEDES relationship) |
 
 ---
 
@@ -283,25 +223,37 @@ hybrid_score = 0.7 * normalized_semantic + 0.3 * normalized_keyword
 
 ---
 
+## Tech Stack
+
+| Component | Technology |
+|-----------|------------|
+| **Database** | Neo4j 5.13+ (native vector search) |
+| **Language** | Python 3.9+ |
+| **Embeddings** | Qwen 2.5 (GPU rig) or sentence-transformers |
+| **Config** | Pydantic Settings |
+| **CLI** | Click |
+| **MCP** | mcp >= 0.9.0 |
+
+---
+
 ## Project Structure
 
 ```
 ScholarGraph/
-├── cli/              # CLI entry points
-├── config/           # Configuration (Pydantic)
-├── core/             # Neo4j client, GPU rig client
-├── embeddings/       # Embedding generation & caching
-├── graph/            # Schema, nodes, relationships, vector index
-├── ingestion/        # PDF/MD processing, chunking, metadata
-├── mcp_server/       # MCP server for Claude Code
-├── models/           # Pydantic data models
-├── search/           # Semantic, keyword, hybrid search
-├── tests/            # Unit tests
-├── tools/            # External tools (pandoc)
-├── data/             # Data storage
-├── rkg.py            # Main CLI
-├── requirements.txt  # Python dependencies
-└── README.md         # This file
+├── ARCHITECTURE.md    # Deep dive into system design
+├── cli/               # CLI entry points
+├── config/            # Configuration (Pydantic)
+├── core/              # Neo4j client, GPU rig client
+├── embeddings/        # Embedding generation & caching
+├── graph/             # Schema, nodes, relationships, vector index
+├── ingestion/         # PDF/MD processing, chunking, metadata
+├── mcp_server/        # MCP server for Claude Code
+├── models/            # Pydantic data models
+├── search/            # Semantic, keyword, hybrid search
+├── tests/             # Unit tests
+├── tools/             # External tools (pandoc)
+├── rkg.py             # Main CLI
+└── requirements.txt   # Python dependencies
 ```
 
 ---

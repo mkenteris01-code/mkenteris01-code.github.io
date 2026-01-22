@@ -40,7 +40,8 @@ class NodeManager:
         doi: Optional[str] = None,
         embedding: Optional[List[float]] = None,
         metadata: Optional[Dict[str, Any]] = None,
-        file_modified_at: Optional[str] = None
+        file_modified_at: Optional[str] = None,
+        ingestion_date: Optional[str] = None
     ) -> str:
         """
         Create a Document node.
@@ -58,6 +59,7 @@ class NodeManager:
             embedding: Document-level embedding vector
             metadata: Additional metadata
             file_modified_at: File modification timestamp (ISO format)
+            ingestion_date: Document ingestion timestamp (ISO format)
 
         Returns:
             document_id: Unique identifier for the document
@@ -95,6 +97,8 @@ class NodeManager:
             properties["metadata"] = json.dumps(metadata)
         if file_modified_at:
             properties["file_modified_at"] = file_modified_at
+        if ingestion_date:
+            properties["ingestion_date"] = ingestion_date
 
         # Create node
         query = """

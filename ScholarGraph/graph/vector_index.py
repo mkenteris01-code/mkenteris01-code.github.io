@@ -4,8 +4,15 @@ Vector index operations for semantic search in ScholarGraph.
 Requires Neo4j 5.13+ for native vector index support.
 """
 
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Literal
 from core import Neo4jClient
+
+
+# Content mode options for controlling response size
+ContentMode = Literal["preview", "summary", "full"]
+
+# Preview length in characters
+PREVIEW_LENGTH = 800
 
 
 class VectorIndexManager:
@@ -20,12 +27,47 @@ class VectorIndexManager:
         """
         self.client = client
 
+    @staticmethod
+    def _process_content(
+        result: Dict[str, Any],
+        content_mode: ContentMode = "preview"
+    ) -> Dict[str, Any]:
+        """
+        Process chunk content based on content_mode.
+
+        Args:
+            result: Result dictionary from Neo4j
+            content_mode: How to handle content ('preview', 'summary', 'full')
+
+        Returns:
+            Result with processed content
+        """
+        if content_mode == "full":
+            # Return full content as-is
+            return result
+
+        if content_mode == "summary" and "summary" in result:
+            # Return only summary, remove content
+            result.pop("content", None)
+            return result
+
+        if content_mode == "preview" and "content" in result:
+            # Truncate content to preview length
+            content = result["content"]
+            if content and len(content) > PREVIEW_LENGTH:
+                result["content"] = content[:PREVIEW_LENGTH] + "...[truncated]"
+                result["content_full_length"] = len(content)
+            return result
+
+        return result
+
     def vector_search_chunks(
         self,
         embedding: List[float],
         k: int = 10,
         min_score: float = 0.0,
-        only_latest: bool = True
+        only_latest: bool = True,
+        content_mode: ContentMode = "preview"
     ) -> List[Dict[str, Any]]:
         """
         Semantic search for chunks using vector similarity.
@@ -35,6 +77,7 @@ class VectorIndexManager:
             k: Number of results to return
             min_score: Minimum similarity score (0.0 to 1.0)
             only_latest: If True, only search latest (non-superseded) documents (default: True)
+            content_mode: How to handle content ('preview', 'summary', 'full') (default: 'preview')
 
         Returns:
             List of chunks with similarity scores
@@ -43,7 +86,8 @@ class VectorIndexManager:
             results = manager.vector_search_chunks(
                 embedding=[0.1, 0.2, ...],
                 k=10,
-                min_score=0.7
+                min_score=0.7,
+                content_mode="preview"
             )
         """
         query = """
@@ -56,6 +100,8 @@ class VectorIndexManager:
                c.content AS content,
                c.position AS position,
                c.summary AS summary,
+               c.word_count AS word_count,
+               c.char_count AS char_count,
                d.document_id AS document_id,
                d.title AS document_title,
                d.ingestion_date AS ingestion_date,
@@ -73,7 +119,8 @@ class VectorIndexManager:
                     "only_latest": only_latest
                 }
             )
-            return results
+            # Process content based on content_mode
+            return [self._process_content(r, content_mode) for r in results]
 
         except Exception as e:
             error_msg = str(e)

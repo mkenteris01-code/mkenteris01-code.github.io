@@ -2,10 +2,11 @@
 Hybrid search combining semantic and keyword search.
 """
 
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Literal
 
 from core import Neo4jClient
 from embeddings import EmbeddingGenerator
+from graph import ContentMode
 from .semantic_search import SemanticSearch
 from .keyword_search import KeywordSearch
 
@@ -34,7 +35,13 @@ class HybridSearch:
         self.semantic_weight = semantic_weight
         self.keyword_weight = keyword_weight
 
-    def search_chunks(self, query: str, k: int = 10, only_latest: bool = True) -> List[Dict[str, Any]]:
+    def search_chunks(
+        self,
+        query: str,
+        k: int = 10,
+        only_latest: bool = True,
+        content_mode: ContentMode = "preview"
+    ) -> List[Dict[str, Any]]:
         """
         Hybrid search for chunks.
 
@@ -42,12 +49,18 @@ class HybridSearch:
             query: Search query
             k: Number of results
             only_latest: If True, only search latest (non-superseded) documents (default: True)
+            content_mode: How to handle content ('preview', 'summary', 'full') (default: 'preview')
 
         Returns:
             Combined and reranked results
         """
         # Get semantic results
-        semantic_results = self.semantic_search.search_chunks(query, k=k*2, only_latest=only_latest)
+        semantic_results = self.semantic_search.search_chunks(
+            query,
+            k=k*2,
+            only_latest=only_latest,
+            content_mode=content_mode
+        )
 
         # Get keyword results
         keyword_results = self.keyword_search.search_chunks(query, k=k*2, only_latest=only_latest)
@@ -91,7 +104,7 @@ class HybridSearch:
                 self.keyword_weight * keyword_score
             )
 
-            # Find the result data (prefer semantic)
+            # Find the result data (prefer semantic for content, as it has content_mode applied)
             result_data = None
             for r in semantic_results:
                 if r.get('chunk_id') == chunk_id:

@@ -2,10 +2,10 @@
 Semantic search for ScholarGraph using vector similarity.
 """
 
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Literal
 
 from core import Neo4jClient
-from graph import VectorIndexManager
+from graph import VectorIndexManager, ContentMode
 from embeddings import EmbeddingGenerator
 
 
@@ -35,7 +35,8 @@ class SemanticSearch:
         query: str,
         k: int = 10,
         min_score: float = 0.0,
-        only_latest: bool = True
+        only_latest: bool = True,
+        content_mode: ContentMode = "preview"
     ) -> List[Dict[str, Any]]:
         """
         Semantic search for chunks.
@@ -45,6 +46,7 @@ class SemanticSearch:
             k: Number of results
             min_score: Minimum similarity score
             only_latest: If True, only search latest (non-superseded) documents (default: True)
+            content_mode: How to handle content ('preview', 'summary', 'full') (default: 'preview')
 
         Returns:
             List of chunks with scores
@@ -61,7 +63,8 @@ class SemanticSearch:
             embedding=query_embedding,
             k=k,
             min_score=min_score,
-            only_latest=only_latest
+            only_latest=only_latest,
+            content_mode=content_mode
         )
 
         return results
@@ -109,7 +112,7 @@ if __name__ == "__main__":
         generator = EmbeddingGenerator()
         search = SemanticSearch(client, generator)
 
-        results = search.search_chunks("federated learning", k=5)
+        results = search.search_chunks("federated learning", k=5, content_mode="preview")
         print(f"Found {len(results)} results")
         for r in results:
             print(f"  - {r.get('content', '')[:100]}... (score: {r.get('score', 0)})")
