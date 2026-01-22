@@ -754,7 +754,7 @@ class ScholarGraphTools:
                 doc_query = """
                 MATCH (d:Document {document_id: $doc_id})
                 RETURN d.title as title, d.document_type as doc_type,
-                       size((d)-[:CONTAINS]->(:Chunk)) as chunk_count
+                       COUNT {(d)-[:CONTAINS]->(:Chunk)} as chunk_count
                 """
                 doc_info = self.neo4j_client.execute_query(doc_query, {"doc_id": document_id})
                 doc_info = doc_info[0] if doc_info else {}
@@ -898,7 +898,7 @@ class ScholarGraphTools:
                     # Get doc info
                     doc_query = """
                     MATCH (d:Document {document_id: $doc_id})
-                    RETURN d.title as title, size((d)-[:CONTAINS]->(:Chunk)) as chunk_count
+                    RETURN d.title as title, COUNT {(d)-[:CONTAINS]->(:Chunk)} as chunk_count
                     """
                     doc_info = self.neo4j_client.execute_query(doc_query, {"doc_id": document_id})
                     doc_info = doc_info[0] if doc_info else {}
@@ -1862,7 +1862,7 @@ class ScholarGraphTools:
                    d.title as title,
                    d.file_path as file_path,
                    d.ingestion_date as ingestion_date,
-                   size((d)-[:CONTAINS]->(:Chunk)) as chunk_count
+                   COUNT {(d)-[:CONTAINS]->(:Chunk)} as chunk_count
             ORDER BY d.title
             """
 
