@@ -670,6 +670,356 @@ class ScholarGraphTools:
                 "error": str(e)
             }
 
+    async def ingest_document(
+        self,
+        file_path: str,
+        document_type: Optional[str] = None,
+        force_reingestion: bool = False
+    ) -> Dict[str, Any]:
+        """
+        Ingest a single document into ScholarGraph.
+
+        Supports PDF and Markdown files. Automatically detects type if not specified.
+        Handles chunking, embedding generation, and topic extraction.
+
+        Args:
+            file_path: Path to the document file (PDF or Markdown)
+            document_type: Type of document - 'pdf', 'markdown', or None (auto-detect)
+            force_reingestion: If True, re-ingest even if document exists and hasn't changed
+
+        Returns:
+            Dict with ingestion status and details
+        """
+        import os
+        from pathlib import Path
+        from datetime import datetime
+        from .ingestion.batch_ingester import BatchIngester
+
+        try:
+            path = Path(file_path)
+            if not path.exists():
+                return {
+                    "success": False,
+                    "error": f"File not found: {file_path}"
+                }
+
+            # Auto-detect document type if not specified
+            if document_type is None:
+                if path.suffix.lower() == '.pdf':
+                    document_type = 'pdf'
+                elif path.suffix.lower() in ['.md', '.markdown']:
+                    document_type = 'markdown'
+                else:
+                    return {
+                        "success": False,
+                        "error": f"Unsupported file type: {path.suffix}. Supported: .pdf, .md, .markdown"
+                    }
+
+            # Create batch ingester with appropriate settings
+            gpu_client = GPURigClient()
+            ingester = BatchIngester(
+                neo4j_client=self.neo4j_client,
+                gpu_client=gpu_client,
+                generate_embeddings=True,
+                update_existing=True,
+                force_reingestion=force_reingestion,
+                detect_supersession=True
+            )
+
+            # Check if document exists before ingestion
+            absolute_path = str(path.absolute())
+            existing_doc = ingester.check_existing_document(absolute_path)
+
+            action_taken = "created"
+            if existing_doc and not force_reingestion:
+                if ingester.should_update_document(absolute_path, existing_doc):
+                    action_taken = "updated"
+                else:
+                    return {
+                        "success": True,
+                        "message": "Document already exists and is up to date",
+                        "document_id": existing_doc['document_id'],
+                        "title": existing_doc.get('title', ''),
+                        "action": "skipped",
+                        "file_path": absolute_path
+                    }
+
+            # Ingest the document
+            document_id = ingester.ingest_document(str(path), document_type=document_type)
+
+            if document_id:
+                stats = ingester.get_statistics()
+
+                # Get the document details
+                doc_query = """
+                MATCH (d:Document {document_id: $doc_id})
+                RETURN d.title as title, d.document_type as doc_type,
+                       size((d)-[:CONTAINS]->(:Chunk)) as chunk_count
+                """
+                doc_info = self.neo4j_client.execute_query(doc_query, {"doc_id": document_id})
+                doc_info = doc_info[0] if doc_info else {}
+
+                return {
+                    "success": True,
+                    "document_id": document_id,
+                    "title": doc_info.get('title', path.name),
+                    "document_type": doc_info.get('doc_type', document_type),
+                    "chunk_count": doc_info.get('chunk_count', 0),
+                    "action": action_taken,
+                    "file_path": absolute_path,
+                    "stats": {
+                        "chunks_created": stats.get('chunks_created', 0),
+                        "embeddings_generated": stats.get('embeddings_generated', 0),
+                        "topics_created": stats.get('topics_created', 0),
+                        "documents_superseded": stats.get('documents_superseded', 0)
+                    }
+                }
+            else:
+                return {
+                    "success": False,
+                    "error": "Failed to ingest document",
+                    "file_path": absolute_path,
+                    "errors": ingester.stats.get('errors', [])
+                }
+
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e),
+                "file_path": file_path
+            }
+
+    async def ingest_batch(
+        self,
+        directory: str,
+        file_pattern: str = "*.md",
+        recursive: bool = False,
+        force_reingestion: bool = False,
+        limit: Optional[int] = None
+    ) -> Dict[str, Any]:
+        """
+        Ingest multiple documents from a directory into ScholarGraph.
+
+        Args:
+            directory: Path to directory containing documents
+            file_pattern: Glob pattern for files (default: "*.md", also supports "*.pdf")
+            recursive: If True, search recursively in subdirectories (default: False)
+            force_reingestion: If True, re-ingest all files (default: False)
+            limit: Maximum number of files to process (default: all)
+
+        Returns:
+            Dict with batch ingestion results and statistics
+        """
+        from pathlib import Path
+        from .ingestion.batch_ingester import BatchIngester
+
+        try:
+            dir_path = Path(directory)
+            if not dir_path.exists():
+                return {
+                    "success": False,
+                    "error": f"Directory not found: {directory}"
+                }
+
+            if not dir_path.is_dir():
+                return {
+                    "success": False,
+                    "error": f"Path is not a directory: {directory}"
+                }
+
+            # Find matching files
+            if recursive:
+                pattern = f"**/{file_pattern}" if not file_pattern.startswith("**") else file_pattern
+            else:
+                pattern = file_pattern
+
+            all_files = list(dir_path.glob(pattern))
+            all_files = [f for f in all_files if f.is_file()]
+
+            # Apply limit if specified
+            if limit and limit > 0:
+                all_files = all_files[:limit]
+
+            if not all_files:
+                return {
+                    "success": True,
+                    "message": f"No files found matching pattern '{file_pattern}' in {directory}",
+                    "files_processed": 0,
+                    "results": []
+                }
+
+            # Create batch ingester
+            gpu_client = GPURigClient()
+            ingester = BatchIngester(
+                neo4j_client=self.neo4j_client,
+                gpu_client=gpu_client,
+                generate_embeddings=True,
+                update_existing=True,
+                force_reingestion=force_reingestion,
+                detect_supersession=True
+            )
+
+            # Process each file
+            results = []
+            for file_path in all_files:
+                # Determine document type
+                if file_path.suffix.lower() == '.pdf':
+                    doc_type = 'pdf'
+                elif file_path.suffix.lower() in ['.md', '.markdown']:
+                    doc_type = 'markdown'
+                else:
+                    results.append({
+                        "file_path": str(file_path),
+                        "success": False,
+                        "error": f"Unsupported file type: {file_path.suffix}"
+                    })
+                    continue
+
+                # Check existing
+                absolute_path = str(file_path.absolute())
+                existing_doc = ingester.check_existing_document(absolute_path)
+
+                action = "skipped"
+                if existing_doc and not force_reingestion:
+                    if not ingester.should_update_document(absolute_path, existing_doc):
+                        results.append({
+                            "file_path": str(file_path.name),
+                            "document_id": existing_doc['document_id'],
+                            "success": True,
+                            "action": "skipped",
+                            "reason": "Already up to date"
+                        })
+                        continue
+
+                # Ingest
+                document_id = ingester.ingest_document(str(file_path), document_type=doc_type)
+
+                if document_id:
+                    # Get doc info
+                    doc_query = """
+                    MATCH (d:Document {document_id: $doc_id})
+                    RETURN d.title as title, size((d)-[:CONTAINS]->(:Chunk)) as chunk_count
+                    """
+                    doc_info = self.neo4j_client.execute_query(doc_query, {"doc_id": document_id})
+                    doc_info = doc_info[0] if doc_info else {}
+
+                    action = "updated" if existing_doc else "created"
+                    results.append({
+                        "file_path": str(file_path.name),
+                        "document_id": document_id,
+                        "title": doc_info.get('title', file_path.name),
+                        "chunk_count": doc_info.get('chunk_count', 0),
+                        "success": True,
+                        "action": action
+                    })
+                else:
+                    results.append({
+                        "file_path": str(file_path.name),
+                        "success": False,
+                        "error": "Failed to ingest",
+                        "action": "failed"
+                    })
+
+            # Compile summary
+            stats = ingester.get_statistics()
+
+            return {
+                "success": True,
+                "directory": str(dir_path),
+                "file_pattern": file_pattern,
+                "files_found": len(all_files),
+                "summary": {
+                    "created": stats.get('documents_processed', 0),
+                    "updated": stats.get('documents_updated', 0),
+                    "skipped": stats.get('documents_skipped', 0),
+                    "failed": stats.get('documents_failed', 0),
+                    "superseded": stats.get('documents_superseded', 0)
+                },
+                "details": {
+                    "chunks_created": stats.get('chunks_created', 0),
+                    "embeddings_generated": stats.get('embeddings_generated', 0),
+                    "topics_created": stats.get('topics_created', 0)
+                },
+                "results": results[:50],  # Limit response size
+                "results_truncated": len(results) > 50,
+                "errors": stats.get('errors', [])[:10]  # Limit errors shown
+            }
+
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e),
+                "directory": directory
+            }
+
+    async def delete_document(
+        self,
+        document_id: Optional[str] = None,
+        file_path: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Delete a document and all its chunks from ScholarGraph.
+
+        Args:
+            document_id: ID of the document to delete
+            file_path: Alternative: file path to find and delete document
+
+        Returns:
+            Dict with deletion status
+        """
+        try:
+            if not document_id and not file_path:
+                return {
+                    "success": False,
+                    "error": "Either document_id or file_path must be provided"
+                }
+
+            # Find document by file_path if document_id not provided
+            if file_path and not document_id:
+                query = """
+                MATCH (d:Document {file_path: $file_path})
+                RETURN d.document_id as document_id, d.title as title
+                """
+                results = self.neo4j_client.execute_query(query, {"file_path": file_path})
+                if not results:
+                    return {
+                        "success": False,
+                        "error": f"Document not found with file_path: {file_path}"
+                    }
+                document_id = results[0]['document_id']
+                deleted_title = results[0]['title']
+            else:
+                # Get title for response
+                title_query = """
+                MATCH (d:Document {document_id: $doc_id})
+                RETURN d.title as title
+                """
+                title_results = self.neo4j_client.execute_query(title_query, {"doc_id": document_id})
+                deleted_title = title_results[0]['title'] if title_results else "Unknown"
+
+            # Delete document and its chunks
+            query = """
+            MATCH (d:Document {document_id: $document_id})
+            OPTIONAL MATCH (d)-[:CONTAINS]->(c:Chunk)
+            OPTIONAL MATCH (d)-[r:DISCUSSES_TOPIC]->()
+            DETACH DELETE c, r, d
+            RETURN count(*) as deleted_count
+            """
+            result = self.neo4j_client.execute_query(query, {"document_id": document_id})
+
+            return {
+                "success": True,
+                "message": f"Deleted document: {deleted_title}",
+                "document_id": document_id,
+                "title": deleted_title
+            }
+
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
     def close(self):
         """Close database connections."""
         self.neo4j_client.close()

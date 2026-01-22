@@ -208,6 +208,85 @@ async def list_tools() -> list[Tool]:
                 },
                 "required": ["older_doc_id", "newer_doc_id"]
             }
+        ),
+        Tool(
+            name="ingest_document",
+            description="Ingest a single document (PDF or Markdown) into ScholarGraph. "
+                       "Automatically detects file type, chunks content, generates embeddings, and extracts topics. "
+                       "Use this to add new research papers, session notes, or any documentation.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "file_path": {
+                        "type": "string",
+                        "description": "Full path to the document file (.pdf, .md, .markdown)"
+                    },
+                    "document_type": {
+                        "type": "string",
+                        "enum": ["pdf", "markdown"],
+                        "description": "Document type (auto-detected if not specified)"
+                    },
+                    "force_reingestion": {
+                        "type": "boolean",
+                        "description": "Force re-ingestion even if document exists and hasn't changed (default: false)",
+                        "default": False
+                    }
+                },
+                "required": ["file_path"]
+            }
+        ),
+        Tool(
+            name="ingest_batch",
+            description="Ingest multiple documents from a directory into ScholarGraph. "
+                       "Useful for batch processing session files, papers, or document collections. "
+                       "Supports glob patterns and recursive directory search.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "directory": {
+                        "type": "string",
+                        "description": "Path to directory containing documents"
+                    },
+                    "file_pattern": {
+                        "type": "string",
+                        "description": "Glob pattern for files (default: '*.md', also supports '*.pdf', '*.*')",
+                        "default": "*.md"
+                    },
+                    "recursive": {
+                        "type": "boolean",
+                        "description": "Search recursively in subdirectories (default: false)",
+                        "default": False
+                    },
+                    "force_reingestion": {
+                        "type": "boolean",
+                        "description": "Force re-ingestion of all files (default: false)",
+                        "default": False
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Maximum number of files to process (default: all)"
+                    }
+                },
+                "required": ["directory"]
+            }
+        ),
+        Tool(
+            name="delete_document",
+            description="Delete a document and all its chunks from ScholarGraph. "
+                       "Use with caution - this cannot be undone.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "document_id": {
+                        "type": "string",
+                        "description": "ID of the document to delete"
+                    },
+                    "file_path": {
+                        "type": "string",
+                        "description": "Alternative: file path to find and delete document"
+                    }
+                }
+            }
         )
     ]
 
@@ -252,6 +331,25 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 older_doc_id=arguments["older_doc_id"],
                 newer_doc_id=arguments["newer_doc_id"],
                 reason=arguments.get("reason", "manual_link")
+            )
+        elif name == "ingest_document":
+            result = await tools.ingest_document(
+                file_path=arguments["file_path"],
+                document_type=arguments.get("document_type"),
+                force_reingestion=arguments.get("force_reingestion", False)
+            )
+        elif name == "ingest_batch":
+            result = await tools.ingest_batch(
+                directory=arguments["directory"],
+                file_pattern=arguments.get("file_pattern", "*.md"),
+                recursive=arguments.get("recursive", False),
+                force_reingestion=arguments.get("force_reingestion", False),
+                limit=arguments.get("limit")
+            )
+        elif name == "delete_document":
+            result = await tools.delete_document(
+                document_id=arguments.get("document_id"),
+                file_path=arguments.get("file_path")
             )
         else:
             result = {"success": False, "error": f"Unknown tool: {name}"}

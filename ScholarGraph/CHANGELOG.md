@@ -2,6 +2,40 @@
 
 All notable changes to ScholarGraph will be documented in this file.
 
+## [0.2.1] - 2026-01-22
+
+### Added
+- **MCP Ingestion Tools** - Direct document ingestion via MCP protocol
+  - `ingest_document` - Ingest single PDF or Markdown file with auto-detection
+  - `ingest_batch` - Batch ingest from directory with glob patterns
+  - `delete_document` - Remove documents by ID or file path
+- **Project-level CLAUDE.md** - Context documentation for Claude Code CLI
+  - Neo4j credentials and connection details
+  - ScholarGraph import patterns
+  - MCP usage examples
+
+### Changed
+- **MCP Server now supports full CRUD operations**
+  - Previously: Search/query only (read-only)
+  - Now: Create, read, update, delete via MCP tools
+- **Total MCP tools**: 11 (was 8)
+
+### Migration Notes
+
+**For users:** Claude Code CLI can now ingest documents directly through MCP without creating scripts.
+
+**For developers:** Use `ingest_document` for single files, `ingest_batch` for directories.
+
+### Files Modified
+```
+ScholarGraph/
+├── .claude/CLAUDE.md                (new)
+├── mcp_server/tools.py              (added ingest_document, ingest_batch, delete_document)
+└── mcp_server/server.py             (added 3 new tool schemas and handlers)
+```
+
+---
+
 ## [0.2.0] - 2026-01-22
 
 ### Added

@@ -5,7 +5,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="ScholarGraph",
-    version="0.2.0",
+    version="0.2.1",
     packages=find_packages(),
     python_requires=">=3.9",
     install_requires=[
