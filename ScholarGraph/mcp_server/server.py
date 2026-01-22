@@ -287,6 +287,38 @@ async def list_tools() -> list[Tool]:
                     }
                 }
             }
+        ),
+        Tool(
+            name="ingest_missing_sessions",
+            description="Find and ingest missing session files by date range. "
+                       "Automatically compares files in sessions directory with ScholarGraph "
+                       "and ingests only the missing or updated ones.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "sessions_dir": {
+                        "type": "string",
+                        "description": "Path to sessions directory"
+                    },
+                    "date_prefix": {
+                        "type": "string",
+                        "description": "Find files with this date prefix (e.g., '2026-01-18')"
+                    },
+                    "date_from": {
+                        "type": "string",
+                        "description": "Find files from this date onwards (YYYY-MM-DD)"
+                    },
+                    "date_to": {
+                        "type": "string",
+                        "description": "Find files up to this date (YYYY-MM-DD)"
+                    },
+                    "force_reingestion": {
+                        "type": "boolean",
+                        "description": "Force re-ingestion even if unchanged (default: false)",
+                        "default": False
+                    }
+                }
+            }
         )
     ]
 
@@ -350,6 +382,14 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             result = await tools.delete_document(
                 document_id=arguments.get("document_id"),
                 file_path=arguments.get("file_path")
+            )
+        elif name == "ingest_missing_sessions":
+            result = await tools.ingest_missing_sessions(
+                sessions_dir=arguments.get("sessions_dir", r"C:\projects\AgenticAIpkg\docs\knowledge\sessions"),
+                date_prefix=arguments.get("date_prefix"),
+                date_from=arguments.get("date_from"),
+                date_to=arguments.get("date_to"),
+                force_reingestion=arguments.get("force_reingestion", False)
             )
         else:
             result = {"success": False, "error": f"Unknown tool: {name}"}

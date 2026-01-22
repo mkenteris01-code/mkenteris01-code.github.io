@@ -2,11 +2,17 @@
 Batch document ingestion for ScholarGraph.
 """
 
+import sys
 from typing import List, Dict, Any, Optional
 from pathlib import Path
 import time
 import os
 from datetime import datetime
+
+# Fix Windows UTF-8 encoding issues before other imports
+if sys.platform == 'win32':
+    sys.stdout.reconfigure(encoding='utf-8')
+    sys.stderr.reconfigure(encoding='utf-8')
 
 from core import Neo4jClient, GPURigClient
 from graph import NodeManager, RelationshipManager, SchemaManager

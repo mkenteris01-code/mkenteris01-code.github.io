@@ -1020,6 +1020,158 @@ class ScholarGraphTools:
                 "error": str(e)
             }
 
+    async def ingest_missing_sessions(
+        self,
+        sessions_dir: str = r"C:\projects\AgenticAIpkg\docs\knowledge\sessions",
+        date_prefix: Optional[str] = None,
+        date_from: Optional[str] = None,
+        date_to: Optional[str] = None,
+        force_reingestion: bool = False
+    ) -> Dict[str, Any]:
+        """
+        Find and ingest missing session files by date range.
+
+        Automatically finds session files matching a date prefix or range,
+        compares against what's in ScholarGraph, and ingests missing ones.
+
+        Args:
+            sessions_dir: Path to sessions directory
+            date_prefix: Find files with this date prefix (e.g., "2026-01-18")
+            date_from: Find files from this date onwards (format: "YYYY-MM-DD")
+            date_to: Find files up to this date (format: "YYYY-MM-DD")
+            force_reingestion: Force re-ingestion even if file exists unchanged
+
+        Returns:
+            Dict with ingestion results and statistics
+
+        Example:
+            # Ingest all files from 2026-01-18
+            ingest_missing_sessions(date_prefix="2026-01-18")
+
+            # Ingest files from a date range
+            ingest_missing_sessions(date_from="2026-01-18", date_to="2026-01-20")
+        """
+        from pathlib import Path
+        from .ingestion.batch_ingester import BatchIngester
+
+        try:
+            sessions_path = Path(sessions_dir)
+            if not sessions_path.exists():
+                return {
+                    "success": False,
+                    "error": f"Sessions directory not found: {sessions_dir}"
+                }
+
+            # Get all session files
+            all_files = sorted(sessions_path.glob("*.md"), reverse=True)
+
+            # Filter by date
+            if date_prefix:
+                all_files = [f for f in all_files if f.name.startswith(date_prefix)]
+            elif date_from or date_to:
+                filtered = []
+                for f in all_files:
+                    # Extract date from filename (format: YYYY-MM-DD)
+                    parts = f.name.split("-")
+                    if len(parts) >= 3:
+                        try:
+                            file_date = "-".join(parts[:3])
+                            if date_from and file_date < date_from:
+                                continue
+                            if date_to and file_date > date_to:
+                                continue
+                            filtered.append(f)
+                        except ValueError:
+                            pass
+                all_files = filtered
+
+            if not all_files:
+                return {
+                    "success": True,
+                    "message": f"No files found matching date criteria",
+                    "files_processed": 0,
+                    "results": []
+                }
+
+            # Check which files are already ingested
+            query = """
+            MATCH (d:Document)
+            WHERE d.file_path IS NOT NULL
+               AND (d.is_latest = true OR d.is_latest IS NULL)
+            RETURN d.file_path as file_path
+            """
+            results = self.neo4j_client.execute_query(query)
+            ingested_paths = {r.get('file_path', '') for r in results}
+
+            # Process missing files
+            gpu_client = GPURigClient()
+            ingester = BatchIngester(
+                neo4j_client=self.neo4j_client,
+                gpu_client=gpu_client,
+                generate_embeddings=True,
+                update_existing=True,
+                force_reingestion=force_reingestion,
+                detect_supersession=True
+            )
+
+            ingested_results = []
+            skipped_results = []
+            failed_results = []
+
+            for file_path in all_files:
+                absolute_path = str(file_path.absolute())
+                filename = file_path.name
+
+                # Check if already ingested
+                existing_doc = ingester.check_existing_document(absolute_path)
+
+                # Skip if already exists and not forcing
+                if existing_doc and not force_reingestion:
+                    if not ingester.should_update_document(absolute_path, existing_doc):
+                        skipped_results.append({
+                            "filename": filename,
+                            "document_id": existing_doc['document_id'],
+                            "reason": "Already up to date"
+                        })
+                        continue
+
+                # Ingest the file
+                doc_id = ingester.ingest_document(str(file_path), document_type='markdown')
+
+                if doc_id:
+                    stats = ingester.get_statistics()
+                    ingested_results.append({
+                        "filename": filename,
+                        "document_id": doc_id,
+                        "action": "updated" if existing_doc else "created"
+                    })
+                else:
+                    failed_results.append({
+                        "filename": filename,
+                        "error": "Failed to ingest"
+                    })
+
+            return {
+                "success": True,
+                "date_criteria": date_prefix or f"{date_from} to {date_to}",
+                "files_found": len(all_files),
+                "summary": {
+                    "created": len([r for r in ingested_results if r["action"] == "created"]),
+                    "updated": len([r for r in ingested_results if r["action"] == "updated"]),
+                    "skipped": len(skipped_results),
+                    "failed": len(failed_results)
+                },
+                "ingested": ingested_results[:50],
+                "skipped": skipped_results[:50],
+                "failed": failed_results[:10]
+            }
+
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
     def close(self):
         """Close database connections."""
         self.neo4j_client.close()
