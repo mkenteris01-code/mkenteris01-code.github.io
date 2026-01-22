@@ -8,7 +8,13 @@ Runs locally on port 8100 with access to Neo4j database.
 import asyncio
 import json
 import logging
+import sys
 from typing import Optional
+
+# Fix Windows UTF-8 encoding issues for stdio communication
+if sys.platform == 'win32':
+    sys.stdout.reconfigure(encoding='utf-8')
+    sys.stderr.reconfigure(encoding='utf-8')
 
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
