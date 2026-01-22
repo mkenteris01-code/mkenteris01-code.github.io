@@ -1210,13 +1210,11 @@ class ScholarGraphTools:
                     "error": "At least one tag must be provided"
                 }
 
-            # Build tag matching query
-            tag_placeholders = ", ".join([f"$tag{i}" for i in range(len(tags))])
-            tag_params = {f"tag{i}": tag.lower() for i, tag in enumerate(tags)}
-
+            # Build tag matching query - escape $ for Cypher params
             if match_all:
                 # All tags must match
-                match_clause = " AND ".join([f"toLower(t.name) CONTAINS ${tag{i}}" for i in range(len(tags))])
+                conditions = [f"toLower(t.name) CONTAINS toLower($tag{i})" for i in range(len(tags))]
+                match_clause = " AND ".join(conditions)
                 query = f"""
                 MATCH (d:Document)-[r:DISCUSSES_TOPIC]->(t:Topic)
                 WHERE {match_clause}
@@ -1232,7 +1230,8 @@ class ScholarGraphTools:
                 """
             else:
                 # Any tag can match
-                tag_contains = " OR ".join([f"toLower(t.name) CONTAINS ${tag{i}}" for i in range(len(tags))])
+                conditions = [f"toLower(t.name) CONTAINS toLower($tag{i})" for i in range(len(tags))]
+                tag_contains = " OR ".join(conditions)
                 query = f"""
                 MATCH (d:Document)-[r:DISCUSSES_TOPIC]->(t:Topic)
                 WHERE {tag_contains}
@@ -1245,6 +1244,8 @@ class ScholarGraphTools:
                 ORDER BY d.ingestion_date DESC
                 LIMIT $k
                 """
+
+            tag_params = {f"tag{i}": tag.lower() for i, tag in enumerate(tags)}
 
             tag_params["k"] = k
             results = self.neo4j_client.execute_query(query, tag_params)
