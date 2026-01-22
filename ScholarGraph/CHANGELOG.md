@@ -2,6 +2,47 @@
 
 All notable changes to ScholarGraph will be documented in this file.
 
+## [0.3.0] - 2026-01-22
+
+### Added
+- **Document Discovery & Analysis Tools** - 7 new MCP tools for advanced document operations
+  - `search_by_tags` - Find documents by tags/topics (match ANY or ALL)
+  - `get_document_timeline` - Chronological view of documents with date filtering
+  - `search_content_keywords` - Full-text keyword search in titles, abstracts, content
+  - `get_document_network` - Show related documents via shared topics/concepts/versions
+  - `get_phase_documents` - Get documents by project phase (Phase-1, Phase-2A, etc.)
+  - `summarize_recent_work` - AI summary of recent work with topics and phases
+  - `merge_duplicates` - Find and merge duplicate documents (with dry-run mode)
+- **Windows UTF-8 Encoding Fix** - Fixed encoding issues in batch_ingester.py
+  - Automatic stdout/stderr reconfiguration for Windows platforms
+  - Resolves `'charmap' codec can't encode character` errors
+
+### Changed
+- **`ingest_missing_sessions` renamed to `ingest_missing`**
+  - Now works with any folder (not just sessions)
+  - Simplified parameters: `folder`, `date`, `date_from`, `date_to`, `force`
+- **Total MCP tools**: 18 (was 11)
+
+### Migration Notes
+
+**For users:**
+- Use `ingest_missing folder="sessions" date="2026-01-18"` to ingest missing files from any folder
+- Restart Claude CLI to see new tools (MCP servers don't auto-reload)
+
+**For developers:**
+- New tools use existing graph relationships (DISCUSSES_TOPIC, MENTIONS, SUPERSEDES)
+- All new tools are async and follow existing error handling patterns
+
+### Files Modified
+```
+ScholarGraph/
+├── ingestion/batch_ingester.py     (added UTF-8 fix)
+├── mcp_server/tools.py              (added 7 new tools, renamed ingest_missing)
+└── mcp_server/server.py             (added 7 tool schemas and handlers)
+```
+
+---
+
 ## [0.2.1] - 2026-01-22
 
 ### Added

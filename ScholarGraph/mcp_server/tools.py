@@ -1172,6 +1172,796 @@ class ScholarGraphTools:
                 "error": str(e)
             }
 
+    # =============================================================================
+    # NEW TOOLS: Document Discovery, Analysis, and Management
+    # =============================================================================
+
+    async def search_by_tags(
+        self,
+        tags: List[str],
+        match_all: bool = False,
+        k: int = 20
+    ) -> Dict[str, Any]:
+        """
+        Find documents by tags/topics.
+
+        Searches for documents that discuss specific topics or have certain tags.
+        Uses the DISCUSSES_TOPIC relationship in the knowledge graph.
+
+        Args:
+            tags: List of topic/tag names to search for (e.g., ["federated learning", "privacy"])
+            match_all: If True, only return documents that match ALL tags. If False, match ANY tag (default)
+            k: Maximum number of results to return (default: 20)
+
+        Returns:
+            Dict with matching documents and their topic associations
+
+        Example:
+            # Find papers about either federated learning OR differential privacy
+            search_by_tags(["federated learning", "differential privacy"], match_all=False)
+
+            # Find papers about BOTH federated learning AND knowledge graphs
+            search_by_tags(["federated learning", "knowledge graph"], match_all=True)
+        """
+        try:
+            if not tags:
+                return {
+                    "success": False,
+                    "error": "At least one tag must be provided"
+                }
+
+            # Build tag matching query
+            tag_placeholders = ", ".join([f"$tag{i}" for i in range(len(tags))])
+            tag_params = {f"tag{i}": tag.lower() for i, tag in enumerate(tags)}
+
+            if match_all:
+                # All tags must match
+                match_clause = " AND ".join([f"toLower(t.name) CONTAINS ${tag{i}}" for i in range(len(tags))])
+                query = f"""
+                MATCH (d:Document)-[r:DISCUSSES_TOPIC]->(t:Topic)
+                WHERE {match_clause}
+                WITH d, collect({{topic: t.name, confidence: r.confidence}}) as matched_topics
+                WHERE size(matched_topics) >= {len(tags)}
+                RETURN d.document_id as document_id,
+                       d.title as title,
+                       d.ingestion_date as ingestion_date,
+                       d.document_type as document_type,
+                       matched_topics
+                ORDER BY d.ingestion_date DESC
+                LIMIT $k
+                """
+            else:
+                # Any tag can match
+                tag_contains = " OR ".join([f"toLower(t.name) CONTAINS ${tag{i}}" for i in range(len(tags))])
+                query = f"""
+                MATCH (d:Document)-[r:DISCUSSES_TOPIC]->(t:Topic)
+                WHERE {tag_contains}
+                WITH d, collect(DISTINCT {{topic: t.name, confidence: r.confidence}}) as matched_topics
+                RETURN d.document_id as document_id,
+                       d.title as title,
+                       d.ingestion_date as ingestion_date,
+                       d.document_type as document_type,
+                       matched_topics
+                ORDER BY d.ingestion_date DESC
+                LIMIT $k
+                """
+
+            tag_params["k"] = k
+            results = self.neo4j_client.execute_query(query, tag_params)
+
+            return {
+                "success": True,
+                "tags": tags,
+                "match_all": match_all,
+                "count": len(results),
+                "results": results
+            }
+
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e),
+                "tags": tags
+            }
+
+    async def get_document_timeline(
+        self,
+        days: int = 30,
+        document_type: Optional[str] = None,
+        include_chunks: bool = False
+    ) -> Dict[str, Any]:
+        """
+        Get a chronological timeline view of documents.
+
+        Shows documents ordered by ingestion date, useful for understanding
+        the progression of work, research, or project phases.
+
+        Args:
+            days: Number of days to look back (default: 30, use 0 for all time)
+            document_type: Filter by document type ('pdf', 'markdown', or None for all)
+            include_chunks: If True, include chunk count for each document
+
+        Returns:
+            Dict with chronological document list and timeline statistics
+
+        Example:
+            # Get documents from the last 7 days
+            get_document_timeline(days=7)
+
+            # Get all markdown documents
+            get_document_timeline(days=0, document_type="markdown")
+        """
+        try:
+            # Build type filter
+            type_filter = ""
+            if document_type:
+                type_filter = f"AND d.document_type = '{document_type}'"
+
+            # Get documents with their chunk counts
+            if include_chunks:
+                query = f"""
+                MATCH (d:Document)
+                WHERE (d.is_latest = true OR d.is_latest IS NULL)
+                  {type_filter}
+                OPTIONAL MATCH (d)-[:CONTAINS]->(c:Chunk)
+                WITH d, count(c) as chunk_count
+                RETURN d.document_id as document_id,
+                       d.title as title,
+                       d.ingestion_date as ingestion_date,
+                       d.document_type as document_type,
+                       d.file_path as file_path,
+                       chunk_count,
+                       d.superseded_by as superseded_by
+                ORDER BY d.ingestion_date DESC
+                """
+            else:
+                query = f"""
+                MATCH (d:Document)
+                WHERE (d.is_latest = true OR d.is_latest IS NULL)
+                  {type_filter}
+                RETURN d.document_id as document_id,
+                       d.title as title,
+                       d.ingestion_date as ingestion_date,
+                       d.document_type as document_type,
+                       d.file_path as file_path,
+                       d.superseded_by as superseded_by
+                ORDER BY d.ingestion_date DESC
+                """
+
+            results = self.neo4j_client.execute_query(query)
+
+            # Filter by date in Python to avoid Cypher datetime issues
+            from datetime import datetime, timedelta
+
+            if days > 0:
+                cutoff_date = datetime.now() - timedelta(days=days)
+                filtered = []
+                for r in results:
+                    try:
+                        date_str = r.get('ingestion_date', '')
+                        if '.' in date_str:
+                            date_str = date_str.split('.')[0]
+                        doc_date = datetime.fromisoformat(date_str)
+                        if doc_date > cutoff_date:
+                            filtered.append(r)
+                    except (ValueError, TypeError):
+                        # Include if date can't be parsed
+                        filtered.append(r)
+                results = filtered
+
+            # Compute timeline stats
+            stats = {
+                "total_documents": len(results),
+                "days_queried": days if days > 0 else "all",
+                "document_type_filter": document_type or "all"
+            }
+
+            if results:
+                # Group by date
+                from collections import defaultdict
+                by_date = defaultdict(list)
+                for r in results:
+                    date_str = r.get('ingestion_date', '')[:10]  # YYYY-MM-DD
+                    by_date[date_str].append(r['title'])
+
+                stats['dates_with_documents'] = len(by_date)
+                stats['documents_by_date'] = {
+                    date: len(docs) for date, docs in sorted(by_date.items(), reverse=True)
+                }
+
+            return {
+                "success": True,
+                "stats": stats,
+                "timeline": results
+            }
+
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
+    async def search_content_keywords(
+        self,
+        keywords: List[str],
+        match_all: bool = False,
+        k: int = 20,
+        case_sensitive: bool = False
+    ) -> Dict[str, Any]:
+        """
+        Full-text keyword search within document content.
+
+        Searches for keywords within document titles, abstracts, and chunk content.
+        More comprehensive than semantic search for finding specific terms.
+
+        Args:
+            keywords: List of keywords to search for (e.g., ["Neo4j", "GraphRAG"])
+            match_all: If True, all keywords must be present. If False, any keyword can match (default)
+            k: Maximum number of results to return (default: 20)
+            case_sensitive: If True, search is case-sensitive (default: False)
+
+        Returns:
+            Dict with matching documents and highlighted context
+
+        Example:
+            # Find documents mentioning "ScholarGraph" OR "knowledge graph"
+            search_content_keywords(["ScholarGraph", "knowledge graph"], match_all=False)
+        """
+        try:
+            if not keywords:
+                return {
+                    "success": False,
+                    "error": "At least one keyword must be provided"
+                }
+
+            # Build keyword matching clauses
+            if case_sensitive:
+                keyword_checks = [f"(d.title CONTAINS $kw{i} OR d.abstract CONTAINS $kw{i} OR c.content CONTAINS $kw{i})"
+                                 for i in range(len(keywords))]
+            else:
+                keyword_checks = [f"(toLower(d.title) CONTAINS toLower($kw{i}) OR "
+                                  f"toLower(d.abstract) CONTAINS toLower($kw{i}) OR "
+                                  f"toLower(c.content) CONTAINS toLower($kw{i}))"
+                                 for i in range(len(keywords))]
+
+            if match_all:
+                match_clause = " AND ".join(keyword_checks)
+            else:
+                match_clause = " OR ".join(keyword_checks)
+
+            query = f"""
+            MATCH (d:Document)
+            WHERE (d.is_latest = true OR d.is_latest IS NULL)
+            OPTIONAL MATCH (d)-[:CONTAINS]->(c:Chunk)
+            WITH d, c
+            WHERE {match_clause}
+            WITH d, collect(c.content) as chunk_contents
+            RETURN d.document_id as document_id,
+                   d.title as title,
+                   d.abstract as abstract,
+                   d.ingestion_date as ingestion_date,
+                   d.document_type as document_type,
+                   d.file_path as file_path,
+                   size(chunk_contents) as matching_chunks
+            ORDER BY matching_chunks DESC, d.ingestion_date DESC
+            LIMIT $k
+            """
+
+            params = {f"kw{i}": kw for i, kw in enumerate(keywords)}
+            params["k"] = k
+
+            results = self.neo4j_client.execute_query(query, params)
+
+            return {
+                "success": True,
+                "keywords": keywords,
+                "match_all": match_all,
+                "case_sensitive": case_sensitive,
+                "count": len(results),
+                "results": results
+            }
+
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e),
+                "keywords": keywords
+            }
+
+    async def get_document_network(
+        self,
+        document_id: str,
+        depth: int = 2,
+        include_superseded: bool = True
+    ) -> Dict[str, Any]:
+        """
+        Show the document network - related documents connected through relationships.
+
+        Finds documents connected via:
+        - SUPERSEDES relationships (version history)
+        - Shared topics (DISCUSSES_TOPIC)
+        - Shared concepts (mentions of same entities)
+
+        Args:
+            document_id: ID of the central document
+            depth: How many hops to explore (default: 2)
+            include_superseded: Whether to include superseded documents (default: True)
+
+        Returns:
+            Dict with network graph data including nodes and relationships
+
+        Example:
+            get_document_network("doc_abc123", depth=2)
+        """
+        try:
+            # First, get the central document
+            center_query = """
+            MATCH (d:Document {document_id: $doc_id})
+            RETURN d.document_id as document_id,
+                   d.title as title,
+                   d.ingestion_date as ingestion_date,
+                   d.document_type as document_type
+            """
+            center_result = self.neo4j_client.execute_query(center_query, {"doc_id": document_id})
+
+            if not center_result:
+                return {
+                    "success": False,
+                    "error": f"Document not found: {document_id}"
+                }
+
+            center = center_result[0]
+
+            # Find related documents by various relationships
+            latest_filter = "" if include_superseded else "AND (related.is_latest = true OR related.is_latest IS NULL)"
+
+            # Superedes relationships (version history)
+            superseded_query = f"""
+            MATCH (d:Document {{document_id: $doc_id}})-[r:SUPERSEDES*1..{depth}]-(related:Document)
+            WHERE 1=1 {latest_filter}
+            RETURN DISTINCT related.document_id as id,
+                   related.title as title,
+                   related.ingestion_date as date,
+                   'SUPERSEDES' as relationship_type
+            """
+
+            # Topic co-occurrence (documents discussing same topics)
+            topic_query = f"""
+            MATCH (d:Document {{document_id: $doc_id}})-[:DISCUSSES_TOPIC]->(t:Topic)<-[:DISCUSSES_TOPIC]-(related:Document)
+            WHERE related.document_id <> $doc_id
+              {latest_filter}
+            WITH related, count(t) as shared_topics
+            RETURN DISTINCT related.document_id as id,
+                   related.title as title,
+                   related.ingestion_date as date,
+                   'SHARED_TOPICS' as relationship_type,
+                   shared_topics as weight
+            ORDER BY shared_topics DESC
+            """
+
+            # Concept co-occurrence (documents mentioning same concepts in content)
+            concept_query = f"""
+            MATCH (d:Document {{document_id: $doc_id}})-[:MENTIONS]->(c:Concept)<-[:MENTIONS]-(related:Document)
+            WHERE related.document_id <> $doc_id
+              {latest_filter}
+            WITH related, count(c) as shared_concepts
+            RETURN DISTINCT related.document_id as id,
+                   related.title as title,
+                   related.ingestion_date as date,
+                   'SHARED_CONCEPTS' as relationship_type,
+                   shared_concepts as weight
+            ORDER BY shared_concepts DESC
+            """
+
+            superseded = self.neo4j_client.execute_query(superseded_query, {"doc_id": document_id})
+            by_topic = self.neo4j_client.execute_query(topic_query, {"doc_id": document_id})
+            by_concept = self.neo4j_client.execute_query(concept_query, {"doc_id": document_id})
+
+            # Combine and deduplicate results
+            related_map = {}
+            for rel in superseded:
+                related_map[rel['id']] = rel
+            for rel in by_topic:
+                if rel['id'] in related_map:
+                    related_map[rel['id']]['relationship_types'] = related_map[rel['id']].get('relationship_types', [])
+                    related_map[rel['id']]['relationship_types'].append('SHARED_TOPICS')
+                else:
+                    related_map[rel['id']] = rel
+            for rel in by_concept:
+                if rel['id'] in related_map:
+                    related_map[rel['id']]['relationship_types'] = related_map[rel['id']].get('relationship_types', [])
+                    related_map[rel['id']]['relationship_types'].append('SHARED_CONCEPTS')
+                else:
+                    related_map[rel['id']] = rel
+
+            related_documents = list(related_map.values())
+
+            return {
+                "success": True,
+                "center": center,
+                "depth": depth,
+                "related_count": len(related_documents),
+                "related_documents": related_documents
+            }
+
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e),
+                "document_id": document_id
+            }
+
+    async def get_phase_documents(
+        self,
+        phase: str,
+        include_details: bool = True
+    ) -> Dict[str, Any]:
+        """
+        Get documents related to a specific project phase.
+
+        Phases are extracted from document titles or metadata that follow
+        naming conventions like "Phase-1", "Phase-2A", "Phase-3", etc.
+
+        Args:
+            phase: Phase identifier (e.g., "1", "2A", "3", or "Phase-1")
+            include_details: If True, include chunk counts and metadata (default: True)
+
+        Returns:
+            Dict with phase documents grouped by sub-phase
+
+        Example:
+            # Get all Phase 2A documents
+            get_phase_documents("2A")
+
+            # Get all Phase 1 documents with details
+            get_phase_documents("1", include_details=True)
+        """
+        try:
+            # Normalize phase input
+            phase_normalized = phase.replace("Phase-", "").replace("phase-", "").upper()
+
+            # Build search patterns
+            patterns = [f"Phase-{phase_normalized}", f"phase-{phase_normalized}",
+                       f"Phase {phase_normalized}", f"phase {phase_normalized}"]
+
+            # Build OR clause for title matching
+            title_clauses = []
+            for i, pattern in enumerate(patterns):
+                title_clauses.append(f"toLower(d.title) CONTAINS toLower($pattern{i})")
+
+            title_match = " OR ".join(title_clauses)
+
+            if include_details:
+                query = f"""
+                MATCH (d:Document)
+                WHERE (d.is_latest = true OR d.is_latest IS NULL)
+                  AND ({title_match})
+                OPTIONAL MATCH (d)-[:CONTAINS]->(c:Chunk)
+                WITH d, count(c) as chunk_count
+                RETURN d.document_id as document_id,
+                       d.title as title,
+                       d.ingestion_date as ingestion_date,
+                       d.file_path as file_path,
+                       chunk_count,
+                       d.abstract as abstract
+                ORDER BY d.ingestion_date DESC
+                """
+            else:
+                query = f"""
+                MATCH (d:Document)
+                WHERE (d.is_latest = true OR d.is_latest IS NULL)
+                  AND ({title_match})
+                RETURN d.document_id as document_id,
+                       d.title as title,
+                       d.ingestion_date as ingestion_date,
+                       d.file_path as file_path
+                ORDER BY d.ingestion_date DESC
+                """
+
+            params = {f"pattern{i}": pattern for i, pattern in enumerate(patterns)}
+            results = self.neo4j_client.execute_query(query, params)
+
+            # Group by sub-phase if possible
+            from collections import defaultdict
+            by_subphase = defaultdict(list)
+
+            for r in results:
+                title = r.get('title', '')
+                # Try to extract sub-phase (e.g., "2A-Implementation" -> "Implementation")
+                for pattern in patterns:
+                    if pattern.lower() in title.lower():
+                        suffix = title.lower().split(pattern.lower())[-1]
+                        if suffix.startswith('-'):
+                            suffix = suffix[1:].split('-')[0].split('.')[0]
+                            if suffix:
+                                r['subphase'] = suffix
+                                by_subphase[suffix].append(r)
+                                break
+                if 'subphase' not in r:
+                    by_subphase['general'].append(r)
+
+            return {
+                "success": True,
+                "phase": phase_normalized,
+                "total_documents": len(results),
+                "subphases": {k: len(v) for k, v in by_subphase.items()},
+                "documents_by_subphase": dict(by_subphase)
+            }
+
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e),
+                "phase": phase
+            }
+
+    async def summarize_recent_work(
+        self,
+        days: int = 7,
+        include_topics: bool = True,
+        max_documents: int = 50
+    ) -> Dict[str, Any]:
+        """
+        Generate an AI summary of recent work from session documents.
+
+        Aggregates recent documents, extracts key topics, and provides
+        a structured summary of work done in the specified time period.
+
+        Args:
+            days: Number of days to look back (default: 7)
+            include_topics: If True, extract and list topics discussed (default: True)
+            max_documents: Maximum documents to analyze (default: 50)
+
+        Returns:
+            Dict with summary including key themes, topics, and document references
+
+        Example:
+            # Summarize the last week's work
+            summarize_recent_work(days=7)
+
+            # Summarize last 30 days with topic analysis
+            summarize_recent_work(days=30, include_topics=True)
+        """
+        try:
+            # Get recent documents
+            query = """
+            MATCH (d:Document)
+            WHERE (d.is_latest = true OR d.is_latest IS NULL)
+              AND d.ingestion_date IS NOT NULL
+            RETURN d.document_id as document_id,
+                   d.title as title,
+                   d.ingestion_date as ingestion_date,
+                   d.document_type as document_type,
+                   d.file_path as file_path,
+                   d.abstract as abstract
+            ORDER BY d.ingestion_date DESC
+            LIMIT $limit
+            """
+
+            results = self.neo4j_client.execute_query(query, {"limit": max_documents})
+
+            # Filter by date in Python
+            from datetime import datetime, timedelta
+            cutoff_date = datetime.now() - timedelta(days=days)
+
+            recent_docs = []
+            for r in results:
+                try:
+                    date_str = r.get('ingestion_date', '')
+                    if '.' in date_str:
+                        date_str = date_str.split('.')[0]
+                    doc_date = datetime.fromisoformat(date_str)
+                    if doc_date > cutoff_date:
+                        recent_docs.append(r)
+                except (ValueError, TypeError):
+                    continue
+
+            if not recent_docs:
+                return {
+                    "success": True,
+                    "days": days,
+                    "message": f"No documents found in the last {days} days",
+                    "summary": {
+                        "total_documents": 0,
+                        "period": f"Last {days} days"
+                    }
+                }
+
+            # Extract topics if requested
+            topics_data = []
+            if include_topics:
+                topic_query = """
+                MATCH (d:Document)-[r:DISCUSSES_TOPIC]->(t:Topic)
+                WHERE d.document_id IN $doc_ids
+                RETURN t.name as topic, count(d) as doc_count, r.confidence as avg_confidence
+                ORDER BY doc_count DESC
+                LIMIT 20
+                """
+                doc_ids = [d['document_id'] for d in recent_docs]
+                topics_result = self.neo4j_client.execute_query(topic_query, {"doc_ids": doc_ids})
+                topics_data = topics_result
+
+            # Extract phases from document titles
+            from collections import Counter, defaultdict
+            phases = Counter()
+            by_date = defaultdict(list)
+
+            for doc in recent_docs:
+                # Extract date
+                date_str = doc.get('ingestion_date', '')[:10]
+                by_date[date_str].append(doc['title'])
+
+                # Extract phase from title
+                title_lower = doc['title'].lower()
+                if 'phase-' in title_lower:
+                    phase_part = title_lower.split('phase-')[1].split('-')[0].split(' ')[0]
+                    phases[phase_part.upper()] += 1
+
+            # Build summary
+            summary = {
+                "period": f"Last {days} days",
+                "total_documents": len(recent_docs),
+                "date_range": {
+                    "from": min(by_date.keys()) if by_date else None,
+                    "to": max(by_date.keys()) if by_date else None
+                },
+                "documents_by_date": {k: len(v) for k, v in sorted(by_date.items())},
+                "phases_worked_on": dict(phases.most_common(10)),
+                "top_topics": topics_data[:10] if topics_data else [],
+                "document_sample": [d['title'] for d in recent_docs[:15]]
+            }
+
+            return {
+                "success": True,
+                "days": days,
+                "summary": summary
+            }
+
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e),
+                "days": days
+            }
+
+    async def merge_duplicates(
+        self,
+        title_similarity: float = 0.9,
+        dry_run: bool = True
+    ) -> Dict[str, Any]:
+        """
+        Find and optionally merge duplicate documents.
+
+        Identifies documents that may be duplicates based on:
+        - Similar titles
+        - Same file path patterns
+        - Similar content/abstracts
+
+        Args:
+            title_similarity: Similarity threshold for title matching (0.0-1.0, default 0.9)
+            dry_run: If True, only report potential duplicates. If False, actually merge them (default: True)
+
+        Returns:
+            Dict with duplicate groups and merge status
+
+        Example:
+            # Find potential duplicates without merging
+            merge_duplicates(title_similarity=0.9, dry_run=True)
+
+            # Actually merge duplicates (use with caution!)
+            merge_duplicates(title_similarity=0.95, dry_run=False)
+        """
+        try:
+            # Get all latest documents with their titles
+            query = """
+            MATCH (d:Document)
+            WHERE (d.is_latest = true OR d.is_latest IS NULL)
+              AND d.title IS NOT NULL
+            RETURN d.document_id as document_id,
+                   d.title as title,
+                   d.file_path as file_path,
+                   d.ingestion_date as ingestion_date,
+                   size((d)-[:CONTAINS]->(:Chunk)) as chunk_count
+            ORDER BY d.title
+            """
+
+            results = self.neo4j_client.execute_query(query)
+
+            # Find potential duplicates using simple string matching
+            # For a production system, you'd use proper fuzzy matching
+            from difflib import SequenceMatcher
+
+            duplicate_groups = []
+            processed = set()
+
+            for i, doc1 in enumerate(results):
+                if doc1['document_id'] in processed:
+                    continue
+
+                group = [doc1]
+
+                for doc2 in results[i+1:]:
+                    if doc2['document_id'] in processed:
+                        continue
+
+                    # Check title similarity
+                    similarity = SequenceMatcher(None, doc1['title'].lower(), doc2['title'].lower()).ratio()
+
+                    if similarity >= title_similarity:
+                        # Also check if they're from similar file paths
+                        path1 = doc1.get('file_path', '')
+                        path2 = doc2.get('file_path', '')
+                        path_similar = False
+
+                        if path1 and path2:
+                            # Extract basenames for comparison
+                            basename1 = path1.split('\\')[-1].split('/')[-1].lower()
+                            basename2 = path2.split('\\')[-1].split('/')[-1].lower()
+                            path_similar = basename1 == basename2 or SequenceMatcher(None, basename1, basename2).ratio() > 0.8
+
+                        if path_similar or similarity > 0.95:
+                            group.append(doc2)
+                            processed.add(doc2['document_id'])
+
+                if len(group) > 1:
+                    duplicate_groups.append({
+                        'group_id': len(duplicate_groups) + 1,
+                        'similarity_threshold': title_similarity,
+                        'documents': group,
+                        'keep': group[0],  # Keep the first one (oldest by title sort)
+                        'merge_candidates': group[1:]
+                    })
+                    processed.add(doc1['document_id'])
+
+            if dry_run:
+                return {
+                    "success": True,
+                    "dry_run": True,
+                    "title_similarity": title_similarity,
+                    "duplicate_groups_found": len(duplicate_groups),
+                    "groups": duplicate_groups,
+                    "message": "Dry run completed. Set dry_run=False to actually merge duplicates."
+                }
+
+            # Perform actual merges
+            merged_count = 0
+            merge_results = []
+
+            for group in duplicate_groups:
+                keep_doc = group['keep']
+                candidates = group['merge_candidates']
+
+                for candidate in candidates:
+                    # Merge by updating supersession
+                    result = await self.link_documents(
+                        older_doc_id=candidate['document_id'],
+                        newer_doc_id=keep_doc['document_id'],
+                        reason=f"auto_merge_duplicates_sim_{title_similarity}"
+                    )
+
+                    if result.get('success'):
+                        merged_count += 1
+                        merge_results.append({
+                            'merged': candidate['title'],
+                            'into': keep_doc['title']
+                        })
+
+            return {
+                "success": True,
+                "dry_run": False,
+                "title_similarity": title_similarity,
+                "duplicate_groups_found": len(duplicate_groups),
+                "documents_merged": merged_count,
+                "merge_results": merge_results
+            }
+
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e),
+                "title_similarity": title_similarity
+            }
+
     def close(self):
         """Close database connections."""
         self.neo4j_client.close()

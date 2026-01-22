@@ -289,33 +289,209 @@ async def list_tools() -> list[Tool]:
             }
         ),
         Tool(
-            name="ingest_missing_sessions",
-            description="Find and ingest missing session files by date range. "
-                       "Automatically compares files in sessions directory with ScholarGraph "
-                       "and ingests only the missing or updated ones.",
+            name="ingest_missing",
+            description="Find and ingest missing files from a folder into ScholarGraph. "
+                       "Compares folder contents with Neo4j and ingests only missing or updated files. "
+                       "Use: 'ingest missing from <folder> by date <YYYY-MM-DD>'",
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "sessions_dir": {
+                    "folder": {
                         "type": "string",
-                        "description": "Path to sessions directory"
+                        "description": "Path to folder containing documents (e.g., 'sessions', 'scripts', 'papers')"
                     },
-                    "date_prefix": {
+                    "date": {
                         "type": "string",
-                        "description": "Find files with this date prefix (e.g., '2026-01-18')"
+                        "description": "Filter files by date prefix (e.g., '2026-01-18')"
                     },
                     "date_from": {
                         "type": "string",
-                        "description": "Find files from this date onwards (YYYY-MM-DD)"
+                        "description": "Files from this date onwards (YYYY-MM-DD)"
                     },
                     "date_to": {
                         "type": "string",
-                        "description": "Find files up to this date (YYYY-MM-DD)"
+                        "description": "Files up to this date (YYYY-MM-DD)"
                     },
-                    "force_reingestion": {
+                    "force": {
                         "type": "boolean",
-                        "description": "Force re-ingestion even if unchanged (default: false)",
+                        "description": "Force re-ingest all files (default: false)",
                         "default": False
+                    }
+                }
+            }
+        ),
+        Tool(
+            name="search_by_tags",
+            description="Find documents by tags/topics. Uses the DISCUSSES_TOPIC relationship to find "
+                       "documents that discuss specific topics. Can match ANY tag (default) or ALL tags.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "tags": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "List of topic/tag names to search for (e.g., ['federated learning', 'privacy'])"
+                    },
+                    "match_all": {
+                        "type": "boolean",
+                        "description": "If true, only return documents that match ALL tags. If false, match ANY tag (default)",
+                        "default": False
+                    },
+                    "k": {
+                        "type": "integer",
+                        "description": "Maximum number of results to return (default: 20)",
+                        "default": 20
+                    }
+                },
+                "required": ["tags"]
+            }
+        ),
+        Tool(
+            name="get_document_timeline",
+            description="Get a chronological timeline view of documents ordered by ingestion date. "
+                       "Useful for understanding the progression of work, research, or project phases.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "days": {
+                        "type": "integer",
+                        "description": "Number of days to look back (default: 30, use 0 for all time)",
+                        "default": 30
+                    },
+                    "document_type": {
+                        "type": "string",
+                        "description": "Filter by document type ('pdf', 'markdown', or null for all)",
+                        "enum": ["pdf", "markdown"]
+                    },
+                    "include_chunks": {
+                        "type": "boolean",
+                        "description": "If true, include chunk count for each document (default: false)",
+                        "default": False
+                    }
+                }
+            }
+        ),
+        Tool(
+            name="search_content_keywords",
+            description="Full-text keyword search within document content. Searches for keywords within "
+                       "document titles, abstracts, and chunk content. More comprehensive than semantic search "
+                       "for finding specific terms.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "keywords": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "List of keywords to search for (e.g., ['Neo4j', 'GraphRAG'])"
+                    },
+                    "match_all": {
+                        "type": "boolean",
+                        "description": "If true, all keywords must be present. If false, any keyword can match (default)",
+                        "default": False
+                    },
+                    "k": {
+                        "type": "integer",
+                        "description": "Maximum number of results to return (default: 20)",
+                        "default": 20
+                    },
+                    "case_sensitive": {
+                        "type": "boolean",
+                        "description": "If true, search is case-sensitive (default: false)",
+                        "default": False
+                    }
+                },
+                "required": ["keywords"]
+            }
+        ),
+        Tool(
+            name="get_document_network",
+            description="Show the document network - related documents connected through relationships. "
+                       "Finds documents connected via SUPERSEDES relationships (version history), "
+                       "shared topics (DISCUSSES_TOPIC), and shared concepts.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "document_id": {
+                        "type": "string",
+                        "description": "ID of the central document"
+                    },
+                    "depth": {
+                        "type": "integer",
+                        "description": "How many hops to explore (default: 2)",
+                        "default": 2
+                    },
+                    "include_superseded": {
+                        "type": "boolean",
+                        "description": "Whether to include superseded documents (default: true)",
+                        "default": True
+                    }
+                },
+                "required": ["document_id"]
+            }
+        ),
+        Tool(
+            name="get_phase_documents",
+            description="Get documents related to a specific project phase. Phases are extracted from "
+                       "document titles that follow naming conventions like 'Phase-1', 'Phase-2A', 'Phase-3'. "
+                       "Returns documents grouped by sub-phase.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "phase": {
+                        "type": "string",
+                        "description": "Phase identifier (e.g., '1', '2A', '3', or 'Phase-1')"
+                    },
+                    "include_details": {
+                        "type": "boolean",
+                        "description": "If true, include chunk counts and metadata (default: true)",
+                        "default": True
+                    }
+                },
+                "required": ["phase"]
+            }
+        ),
+        Tool(
+            name="summarize_recent_work",
+            description="Generate a summary of recent work from session documents. Aggregates recent documents, "
+                       "extracts key topics, and provides a structured summary of work done in the specified time period.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "days": {
+                        "type": "integer",
+                        "description": "Number of days to look back (default: 7)",
+                        "default": 7
+                    },
+                    "include_topics": {
+                        "type": "boolean",
+                        "description": "If true, extract and list topics discussed (default: true)",
+                        "default": True
+                    },
+                    "max_documents": {
+                        "type": "integer",
+                        "description": "Maximum documents to analyze (default: 50)",
+                        "default": 50
+                    }
+                }
+            }
+        ),
+        Tool(
+            name="merge_duplicates",
+            description="Find and optionally merge duplicate documents. Identifies documents that may be "
+                       "duplicates based on similar titles and file paths. Default is dry_run=True to preview "
+                       "before actually merging.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "title_similarity": {
+                        "type": "number",
+                        "description": "Similarity threshold for title matching 0.0-1.0 (default: 0.9)",
+                        "default": 0.9
+                    },
+                    "dry_run": {
+                        "type": "boolean",
+                        "description": "If true, only report potential duplicates. If false, actually merge them (default: true)",
+                        "default": True
                     }
                 }
             }
@@ -383,13 +559,54 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 document_id=arguments.get("document_id"),
                 file_path=arguments.get("file_path")
             )
-        elif name == "ingest_missing_sessions":
+        elif name == "ingest_missing":
             result = await tools.ingest_missing_sessions(
-                sessions_dir=arguments.get("sessions_dir", r"C:\projects\AgenticAIpkg\docs\knowledge\sessions"),
-                date_prefix=arguments.get("date_prefix"),
+                sessions_dir=arguments.get("folder", r"C:\projects\AgenticAIpkg\docs\knowledge\sessions"),
+                date_prefix=arguments.get("date"),
                 date_from=arguments.get("date_from"),
                 date_to=arguments.get("date_to"),
-                force_reingestion=arguments.get("force_reingestion", False)
+                force_reingestion=arguments.get("force", False)
+            )
+        elif name == "search_by_tags":
+            result = await tools.search_by_tags(
+                tags=arguments.get("tags", []),
+                match_all=arguments.get("match_all", False),
+                k=arguments.get("k", 20)
+            )
+        elif name == "get_document_timeline":
+            result = await tools.get_document_timeline(
+                days=arguments.get("days", 30),
+                document_type=arguments.get("document_type"),
+                include_chunks=arguments.get("include_chunks", False)
+            )
+        elif name == "search_content_keywords":
+            result = await tools.search_content_keywords(
+                keywords=arguments.get("keywords", []),
+                match_all=arguments.get("match_all", False),
+                k=arguments.get("k", 20),
+                case_sensitive=arguments.get("case_sensitive", False)
+            )
+        elif name == "get_document_network":
+            result = await tools.get_document_network(
+                document_id=arguments.get("document_id", ""),
+                depth=arguments.get("depth", 2),
+                include_superseded=arguments.get("include_superseded", True)
+            )
+        elif name == "get_phase_documents":
+            result = await tools.get_phase_documents(
+                phase=arguments.get("phase", ""),
+                include_details=arguments.get("include_details", True)
+            )
+        elif name == "summarize_recent_work":
+            result = await tools.summarize_recent_work(
+                days=arguments.get("days", 7),
+                include_topics=arguments.get("include_topics", True),
+                max_documents=arguments.get("max_documents", 50)
+            )
+        elif name == "merge_duplicates":
+            result = await tools.merge_duplicates(
+                title_similarity=arguments.get("title_similarity", 0.9),
+                dry_run=arguments.get("dry_run", True)
             )
         else:
             result = {"success": False, "error": f"Unknown tool: {name}"}
