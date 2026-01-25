@@ -2,6 +2,8 @@
 title: "Home"
 ---
 
+![Michael Kenteris - AI Research & Education](/assets/images/home-cover.jpg)
+
 # Welcome
 
 This is the code and research portfolio of **Michael Kenteris**, Postdoctoral Researcher at the University of the Aegean.
