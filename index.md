@@ -57,27 +57,16 @@ Systematic review of Federated Learning, Knowledge Graphs, and Large Language Mo
 - Proposes neurosymbolic framework
 - CEFR-aligned pedagogical grounding
 
-## Recent Writing
+## Posts
 
-### [SmolLM2: A Data-Centric Alternative for Pedagogically-Grounded Language Model Validation](/blog/2025/12/28/smollm2-pedagogical-validation/)
-
-Why a 1.7B model trained on educational data outperforms generic alternatives for language learning validation—without sacrificing transparency, deployability, or privacy.
-
-### [CEFR Validation: How I Discovered 25% of Educational Standards Were Misclassified](/blog/2025/12/26/cefr-validation-triangulation/)
-
-Using keyword analysis, LLM ensembles, and expert review to validate CEFR descriptor classifications.
-
-### [Giving AI Memory: A GraphRAG Approach](/blog/2025/12/25/giving-ai-memory/)
-
-How I gave Claude Code a permanent, structured memory using GraphRAG and MCP.
-
-> "By giving my AI a memory system, I've moved from 'searching for information' to 'synthesizing insights.'"
-
-[Also on LinkedIn](https://www.linkedin.com/pulse/researchers-christmas-miracle-gift-graphrag-memory-michael-kenteris-ped7f/)
+{% for post in site.posts limit:5 %}
+### [{{ post.title }}]({{ post.url }})
+{{ post.excerpt }}
+{% endfor %}
 
 ## Contact
 
 - **Email:** mkenteris@aegean.gr
 - **GitHub:** [mkenteris01](https://github.com/mkenteris01)
-- **LinkedIn:** [Michael Kenteris](https://www.linkedin.com/in/michael-kenteris/)
+- **LinkedIn:** [Michael Kenteris](https://www.linkedin.com/in/kenteris/)
 - **Institution:** University of the Aegean, Department of Cultural Technology and Communication
