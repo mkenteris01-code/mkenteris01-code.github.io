@@ -10,12 +10,10 @@ This is the code and research portfolio of **Michael Kenteris**, Postdoctoral Re
 
 ## Affiliation
 
-**Intelligent Systems Laboratory (i-lab)**
-**Semantic Web of Things (SWoT) Group**
+**[Intelligent Systems Laboratory (i-lab)](https://i-lab.aegean.gr/)**
+**[Semantic Web of Things (SWoT) Group](https://i-lab.aegean.gr/swot/)**
 Department of Information & Communication Systems Engineering
 University of the Aegean
-
-🔗 https://i-lab.aegean.gr/swot/
 
 ---
 
