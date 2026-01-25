@@ -62,6 +62,8 @@ Systematic review of Federated Learning, Knowledge Graphs, and Large Language Mo
 
 {% for post in site.posts limit:5 %}
 ### [{{ post.title }}]({{ post.url }})
+*{{ post.date | date: "%b %d, %Y" }}*
+
 {{ post.excerpt }}
 {% endfor %}
 
