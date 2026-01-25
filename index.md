@@ -72,4 +72,6 @@ Systematic review of Federated Learning, Knowledge Graphs, and Large Language Mo
 - **Email:** mkenteris@aegean.gr
 - **GitHub:** [mkenteris01](https://github.com/mkenteris01)
 - **LinkedIn:** [Michael Kenteris](https://www.linkedin.com/in/kenteris/)
+- **i-lab:** [Intelligent Systems Laboratory](https://i-lab.aegean.gr/)
+- **SWoT:** [Semantic Web of Things Group](https://i-lab.aegean.gr/swot/)
 - **Institution:** University of the Aegean, Department of Cultural Technology and Communication
