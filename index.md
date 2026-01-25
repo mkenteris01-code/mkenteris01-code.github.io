@@ -1,5 +1,6 @@
 ---
 title: "Home"
+layout: home
 ---
 
 ![Michael Kenteris - AI Research & Education](/assets/images/home-cover.jpg)
