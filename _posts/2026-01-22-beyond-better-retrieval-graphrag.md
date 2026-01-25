@@ -1,5 +1,5 @@
 ---
-title: "Beyond "Better" Retrieval: Why I Added a Knowledge Graph to My RAG Pipeline"
+title: "Beyond \"Better\" Retrieval: Why I Added a Knowledge Graph to My RAG Pipeline"
 date: 2026-01-22 15:00:00 +0200
 categories: [GraphRAG, RAG, Knowledge Graphs, AI]
 tags: [graphrag, knowledge-graph, rag, neo4j, llm, retrieval]
