@@ -1,10 +1,10 @@
 ---
-title: 'From "Trust Me" to "Show Me": Context Graphs for AI Governance in Schools'
+title: "From \"Trust Me\" to \"Show Me\": Context Graphs for AI Governance in Schools"
 date: 2026-01-25 09:00:00 +0200
 categories: [AI Governance, Education, Context Graphs]
 tags: [ai-governance, education, context-graphs, teacher-workload, student-safety, responsible-ai]
 author: Michael Kenteris
-excerpt: "How can schools use AI safely without increasing teacher workload? Context graphs—think of them as 'AI receipts'—shift us from 'trust me' AI to 'show me' AI, making visible what the system did, why, and who approved it."
+excerpt: "How can schools use AI safely without increasing teacher workload? Context graphs—think of them as AI receipts—shift us from trust me AI to show me AI, making visible what the system did, why, and who approved it."
 ---
 
 ![Context Graphs for AI Governance in Schools](/assets/images/context-graphs-schools.png)
