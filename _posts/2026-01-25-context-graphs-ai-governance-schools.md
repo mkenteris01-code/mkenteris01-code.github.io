@@ -1,5 +1,5 @@
 ---
-title: "From "Trust Me" to "Show Me": Context Graphs for AI Governance in Schools"
+title: 'From "Trust Me" to "Show Me": Context Graphs for AI Governance in Schools'
 date: 2026-01-25 09:00:00 +0200
 categories: [AI Governance, Education, Context Graphs]
 tags: [ai-governance, education, context-graphs, teacher-workload, student-safety, responsible-ai]
